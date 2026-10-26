@@ -1,300 +1,246 @@
 --!strict
--- CharacterService: dresses every player as an expedition member instead of
--- their normal Roblox avatar. (StarterPlayer.LoadCharacterAppearance is off in
--- default.project.json, so avatar clothes and accessories never load.)
+-- CharacterService: every character in the game, styled from the Riftfall
+-- character concept sheet (see Shared/CharacterDesigns and Util/Outfitter).
 --
--- Each player gets an outfit from OUTFITS (picked from their UserId, so it is
--- the same every time they play and co-op partners look different) plus
--- expedition gear built from parts: field hat, backpack with bedroll,
--- harness, scarf, belt with pouches and radio, and boots.
---
--- Everything is placeholder geometry welded to the body. A real 3D outfit
--- (meshes or layered clothing you own) can replace it later.
+--  * Players are Jax Mercer. Each player wears one of Jax's outfits
+--    (Default, Stealth, Survival, Wanderer, Heavy Armor) and can switch with
+--    the Outfit button. The choice is cosmetic only; the server validates it.
+--    (StarterPlayer.LoadCharacterAppearance is off, so Roblox avatars never
+--    load.)
+--  * Story characters (Serra, Kade, Lira, and a dormant Corrupted Soldier)
+--    are spawned on "CharacterSpot" markers placed by LevelBuilder. A spot's
+--    Phase decides when it is used: Kade and Lira move from the camp and
+--    temple to the rescue flare once the escape begins.
 
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local CharacterDesigns = require(ReplicatedStorage.Shared.CharacterDesigns)
+local Outfitter = require(script.Parent.Parent.Util.Outfitter)
+local Zones = require(script.Parent.Parent.Util.Zones)
+local PlayerData = require(script.Parent.Parent.Util.PlayerData)
+local StoryService = require(script.Parent.StoryService)
+
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local Designs = CharacterDesigns.Designs
 
 local CharacterService = {}
 
-type Outfit = {
-	Role: string,
-	Jacket: Color3,
-	Sleeves: Color3,
-	Trousers: Color3,
-	Boots: Color3,
-	Hat: Color3,
-	Pack: Color3,
-	Scarf: Color3,
+-- Talk prompt dialogue per character and phase.
+local TALK_DIALOGUE: { [string]: { [string]: string } } = {
+	Serra = { Explore = "TalkSerra", Escape = "TalkSerra" },
+	Kade = { Explore = "TalkKade", Escape = "TalkKadeEnd" },
+	Lira = { Explore = "TalkLira", Escape = "TalkLiraEnd" },
 }
 
-local OUTFITS: { Outfit } = {
-	{
-		Role = "Scout",
-		Jacket = Color3.fromRGB(92, 104, 64),
-		Sleeves = Color3.fromRGB(78, 88, 54),
-		Trousers = Color3.fromRGB(150, 128, 92),
-		Boots = Color3.fromRGB(52, 38, 28),
-		Hat = Color3.fromRGB(138, 112, 74),
-		Pack = Color3.fromRGB(120, 60, 40),
-		Scarf = Color3.fromRGB(178, 66, 48),
-	},
-	{
-		Role = "Surveyor",
-		Jacket = Color3.fromRGB(176, 92, 44),
-		Sleeves = Color3.fromRGB(150, 78, 38),
-		Trousers = Color3.fromRGB(70, 74, 64),
-		Boots = Color3.fromRGB(40, 32, 28),
-		Hat = Color3.fromRGB(62, 70, 54),
-		Pack = Color3.fromRGB(64, 80, 92),
-		Scarf = Color3.fromRGB(214, 190, 120),
-	},
-	{
-		Role = "Medic",
-		Jacket = Color3.fromRGB(58, 80, 110),
-		Sleeves = Color3.fromRGB(48, 66, 92),
-		Trousers = Color3.fromRGB(120, 112, 96),
-		Boots = Color3.fromRGB(46, 36, 30),
-		Hat = Color3.fromRGB(170, 160, 132),
-		Pack = Color3.fromRGB(150, 150, 142),
-		Scarf = Color3.fromRGB(200, 60, 60),
-	},
-	{
-		Role = "Climber",
-		Jacket = Color3.fromRGB(196, 168, 60),
-		Sleeves = Color3.fromRGB(70, 70, 74),
-		Trousers = Color3.fromRGB(54, 58, 66),
-		Boots = Color3.fromRGB(36, 30, 26),
-		Hat = Color3.fromRGB(80, 60, 44),
-		Pack = Color3.fromRGB(90, 110, 70),
-		Scarf = Color3.fromRGB(60, 110, 140),
-	},
-}
+------------------------------------------------------------------------------
+-- Players
+------------------------------------------------------------------------------
 
-local SKIN_TONES = {
-	Color3.fromRGB(234, 192, 160),
-	Color3.fromRGB(198, 146, 108),
-	Color3.fromRGB(156, 104, 72),
-	Color3.fromRGB(112, 74, 52),
-	Color3.fromRGB(76, 52, 40),
-}
+local joinCount = 0
 
-local LIMB_COLORS: { [string]: string } = {
-	UpperTorso = "Jacket",
-	LowerTorso = "Trousers",
-	LeftUpperArm = "Sleeves",
-	RightUpperArm = "Sleeves",
-	LeftLowerArm = "Sleeves",
-	RightLowerArm = "Sleeves",
-	LeftUpperLeg = "Trousers",
-	RightUpperLeg = "Trousers",
-	LeftLowerLeg = "Trousers",
-	RightLowerLeg = "Trousers",
-	LeftFoot = "Boots",
-	RightFoot = "Boots",
-	-- R6 fallback names.
-	Torso = "Jacket",
-	["Left Arm"] = "Sleeves",
-	["Right Arm"] = "Sleeves",
-	["Left Leg"] = "Trousers",
-	["Right Leg"] = "Trousers",
-}
-local SKIN_PARTS = { "Head", "LeftHand", "RightHand" }
-
-function CharacterService.GetOutfit(player: Player): Outfit
-	return OUTFITS[(player.UserId % #OUTFITS) + 1]
-end
-
--- Welds a decorative part to `body` at `offset` (relative to the body part).
-local function gear(body: BasePart, name: string, props: { [string]: any }, offset: CFrame): Part
-	local p = Instance.new("Part")
-	p.Name = "Gear_" .. name
-	p.CanCollide = false
-	p.CanQuery = false
-	p.CanTouch = false
-	p.Massless = true
-	p.CastShadow = true
-	p.TopSurface = Enum.SurfaceType.Smooth
-	p.BottomSurface = Enum.SurfaceType.Smooth
-	p.Material = Enum.Material.Fabric
-	for key, value in props do
-		(p :: any)[key] = value
+local function outfitFor(player: Player): string
+	local chosen = player:GetAttribute("OutfitId")
+	if type(chosen) == "string" and table.find(CharacterDesigns.PlayerOutfits, chosen) then
+		return chosen
 	end
-	p.CFrame = body.CFrame * offset
-	local weld = Instance.new("WeldConstraint")
-	weld.Part0 = body
-	weld.Part1 = p
-	weld.Parent = p
-	p.Parent = body.Parent
-	return p
+	-- First player is classic Jax; co-op partners get different outfits.
+	local outfits = CharacterDesigns.PlayerOutfits
+	local pick = outfits[(joinCount % #outfits) + 1]
+	joinCount += 1
+	player:SetAttribute("OutfitId", pick)
+	return pick
 end
 
-local function findPart(character: Model, names: { string }): BasePart?
-	for _, name in names do
-		local part = character:FindFirstChild(name) or character:WaitForChild(name, 5)
-		if part and part:IsA("BasePart") then
-			return part
+local function dressPlayer(player: Player, character: Model)
+	-- Wait briefly for the body parts to exist.
+	for _, name in { "Head", "UpperTorso", "LowerTorso" } do
+		if not character:FindFirstChild(name) then
+			character:WaitForChild(name, 5)
 		end
 	end
-	return nil
-end
-
-local function dress(player: Player, character: Model)
-	local outfit = CharacterService.GetOutfit(player)
-	local skin = SKIN_TONES[(math.floor(player.UserId / #OUTFITS) % #SKIN_TONES) + 1]
-
-	-- Remove anything avatar-related that might still have loaded.
-	for _, child in character:GetChildren() do
-		if
-			child:IsA("Accessory")
-			or child:IsA("Shirt")
-			or child:IsA("Pants")
-			or child:IsA("ShirtGraphic")
-			or child:IsA("BodyColors")
-		then
-			child:Destroy()
-		end
-	end
-
-	local head = findPart(character, { "Head" })
-	local torso = findPart(character, { "UpperTorso", "Torso" })
-	local hips = findPart(character, { "LowerTorso", "Torso" })
-	if not head or not torso or not hips or character.Parent == nil then
+	if character.Parent == nil then
 		return
 	end
-
-	for _, part in character:GetChildren() do
-		if part:IsA("BasePart") then
-			local key = LIMB_COLORS[part.Name]
-			if key then
-				part.Color = (outfit :: any)[key]
-			elseif table.find(SKIN_PARTS, part.Name) then
-				part.Color = skin
-			end
+	local design = Designs[outfitFor(player)]
+	if Outfitter.Apply(character, design) then
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			humanoid.DisplayName = player.DisplayName
 		end
-	end
-
-	local hs, ts, ls = head.Size, torso.Size, hips.Size
-
-	-- Field hat: wide brim and a crown with a band.
-	local brimY = hs.Y / 2 + 0.05
-	gear(head, "HatBrim", {
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(0.12, hs.X * 1.9, hs.X * 1.9),
-		Color = outfit.Hat,
-	}, CFrame.new(0, brimY, 0) * CFrame.Angles(0, 0, math.rad(90)))
-	gear(head, "HatCrown", {
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(hs.Y * 0.5, hs.X * 1.1, hs.X * 1.1),
-		Color = outfit.Hat,
-	}, CFrame.new(0, brimY + hs.Y * 0.25, 0) * CFrame.Angles(0, 0, math.rad(90)))
-	gear(head, "HatBand", {
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(0.14, hs.X * 1.13, hs.X * 1.13),
-		Color = outfit.Scarf,
-	}, CFrame.new(0, brimY + 0.12, 0) * CFrame.Angles(0, 0, math.rad(90)))
-
-	-- Scarf around the neck.
-	gear(torso, "Scarf", {
-		Size = Vector3.new(ts.X * 0.75, 0.3, ts.Z * 1.15),
-		Color = outfit.Scarf,
-	}, CFrame.new(0, ts.Y / 2 - 0.05, 0))
-	gear(torso, "ScarfTail", {
-		Size = Vector3.new(0.35, 0.8, 0.1),
-		Color = outfit.Scarf,
-	}, CFrame.new(ts.X * 0.18, ts.Y / 2 - 0.5, -ts.Z / 2 - 0.06) * CFrame.Angles(0, 0, math.rad(-8)))
-
-	-- Harness straps across the chest (front is -Z).
-	for _, side in { -1, 1 } do
-		gear(torso, "Strap", {
-			Size = Vector3.new(0.22, ts.Y * 1.02, 0.08),
-			Color = Color3.fromRGB(46, 40, 34),
-			Material = Enum.Material.Leather,
-		}, CFrame.new(side * ts.X * 0.28, 0, -ts.Z / 2 - 0.04))
-	end
-	gear(torso, "ChestPocket", {
-		Size = Vector3.new(0.45, 0.4, 0.12),
-		Color = outfit.Sleeves,
-	}, CFrame.new(-ts.X * 0.22, ts.Y * 0.12, -ts.Z / 2 - 0.08))
-
-	-- Backpack with a rolled bedroll on top (back is +Z).
-	local packDepth = 0.75
-	gear(torso, "Backpack", {
-		Size = Vector3.new(ts.X * 0.85, ts.Y * 1.1, packDepth),
-		Color = outfit.Pack,
-		Material = Enum.Material.Fabric,
-	}, CFrame.new(0, -0.05, ts.Z / 2 + packDepth / 2))
-	gear(torso, "PackPocket", {
-		Size = Vector3.new(ts.X * 0.6, ts.Y * 0.4, 0.2),
-		Color = outfit.Pack:Lerp(Color3.new(0, 0, 0), 0.25),
-	}, CFrame.new(0, -ts.Y * 0.2, ts.Z / 2 + packDepth + 0.1))
-	gear(torso, "Bedroll", {
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(ts.X * 1.05, 0.55, 0.55),
-		Color = Color3.fromRGB(96, 110, 80),
-	}, CFrame.new(0, ts.Y * 0.6 + 0.2, ts.Z / 2 + packDepth / 2))
-
-	-- Belt with pouches and a field radio.
-	gear(hips, "Belt", {
-		Size = Vector3.new(ls.X * 1.04, 0.22, ls.Z * 1.06),
-		Color = Color3.fromRGB(58, 46, 36),
-		Material = Enum.Material.Leather,
-	}, CFrame.new(0, ls.Y / 2 - 0.08, 0))
-	for _, side in { -1, 1 } do
-		gear(hips, "Pouch", {
-			Size = Vector3.new(0.35, 0.35, 0.25),
-			Color = outfit.Trousers:Lerp(Color3.new(0, 0, 0), 0.35),
-		}, CFrame.new(side * ls.X * 0.38, 0, -ls.Z / 2 - 0.1))
-	end
-	gear(hips, "Radio", {
-		Size = Vector3.new(0.25, 0.5, 0.35),
-		Color = Color3.fromRGB(40, 42, 40),
-		Material = Enum.Material.Metal,
-	}, CFrame.new(ls.X / 2 + 0.12, 0, 0))
-	local antenna = gear(hips, "RadioAntenna", {
-		Size = Vector3.new(0.05, 0.6, 0.05),
-		Color = Color3.fromRGB(30, 30, 30),
-		Material = Enum.Material.Metal,
-	}, CFrame.new(ls.X / 2 + 0.12, 0.5, 0.08))
-	gear(hips, "RadioLight", {
-		Size = Vector3.new(0.08, 0.08, 0.08),
-		Color = Color3.fromRGB(90, 255, 120),
-		Material = Enum.Material.Neon,
-	}, CFrame.new(ls.X / 2 + 0.12, 0.27, -0.1))
-	antenna.CastShadow = false
-
-	-- Boot cuffs.
-	for _, footName in { "LeftFoot", "RightFoot" } do
-		local foot = character:FindFirstChild(footName)
-		if foot and foot:IsA("BasePart") then
-			gear(foot, "BootCuff", {
-				Size = foot.Size * Vector3.new(1.08, 0.5, 1.08),
-				Color = outfit.Boots:Lerp(Color3.new(1, 1, 1), 0.1),
-				Material = Enum.Material.Leather,
-			}, CFrame.new(0, foot.Size.Y * 0.4, 0))
-		end
-	end
-
-	character:SetAttribute("ExpeditionRole", outfit.Role)
-	local humanoid = character:FindFirstChildOfClass("Humanoid")
-	if humanoid then
-		humanoid.DisplayName = player.DisplayName .. " - " .. outfit.Role
 	end
 end
 
-CharacterService.Dress = dress
+local function onChangeOutfit(player: Player)
+	if not PlayerData.RateLimit(player, "Outfit", 1) then
+		return
+	end
+	local outfits = CharacterDesigns.PlayerOutfits
+	local current = table.find(outfits, outfitFor(player)) or 1
+	local nextId = outfits[current % #outfits + 1]
+	player:SetAttribute("OutfitId", nextId)
+	local character = PlayerData.GetAliveCharacter(player)
+	if character then
+		Outfitter.Apply(character, Designs[nextId])
+	end
+	StoryService.Toast(player, "Outfit: " .. Designs[nextId].Title, "info")
+end
+
+------------------------------------------------------------------------------
+-- Story characters
+------------------------------------------------------------------------------
+
+type SpotRecord = { Spot: BasePart, Model: Model?, Phase: string }
+local spots: { SpotRecord } = {}
+
+-- Builds a standing, posed R15 character for a design.
+local function buildNPC(design: CharacterDesigns.Design): Model?
+	local description = Instance.new("HumanoidDescription")
+	description.WidthScale = design.Width or 1
+	description.DepthScale = design.Width or 1
+	description.HeightScale = design.Height or 1
+	local ok, model = pcall(function()
+		return Players:CreateHumanoidModelFromDescription(description, Enum.HumanoidRigType.R15)
+	end)
+	if not ok or not model then
+		warn("[CharacterService] Could not build", design.Id, model)
+		return nil
+	end
+	model.Name = design.DisplayName
+	local humanoid = model:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		humanoid.DisplayName = design.DisplayName .. " - " .. design.Title
+		humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer
+		humanoid.NameDisplayDistance = 30
+		humanoid.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
+		humanoid.BreakJointsOnDeath = false
+	end
+	-- Remove the default animation script: these characters hold a pose.
+	local animate = model:FindFirstChild("Animate")
+	if animate then
+		animate:Destroy()
+	end
+	Outfitter.Apply(model, design)
+	return model
+end
+
+-- Places a model so it stands on the spot's position, facing its direction.
+local function standOn(model: Model, spot: BasePart, slump: boolean)
+	local root = model:FindFirstChild("HumanoidRootPart")
+	if not root or not root:IsA("BasePart") then
+		return
+	end
+	root.Anchored = true
+	model.PrimaryPart = root
+	-- Work out how far the root sits above the feet, then stand on the spot.
+	local boxCFrame, boxSize = model:GetBoundingBox()
+	local rootAboveFeet = root.Position.Y - (boxCFrame.Position.Y - boxSize.Y / 2)
+	local target = spot.CFrame + Vector3.new(0, rootAboveFeet - spot.Size.Y / 2 + 0.5, 0)
+	if slump then
+		-- Leaning back against the pillar, head hanging.
+		target = target * CFrame.new(0, -1.2, 0) * CFrame.Angles(math.rad(-22), 0, 0)
+	end
+	model:PivotTo(target)
+end
+
+local function addTalkPrompt(model: Model, characterId: string, phase: string)
+	local dialogue = TALK_DIALOGUE[characterId]
+	local root = model:FindFirstChild("HumanoidRootPart")
+	if not dialogue or not root then
+		return
+	end
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.ActionText = "Talk"
+	prompt.ObjectText = model.Name
+	prompt.MaxActivationDistance = 10
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = root
+	prompt.Triggered:Connect(function(player)
+		if PlayerData.RateLimit(player, "Talk", 2) then
+			StoryService.PlayDialogue(dialogue[phase] or dialogue.Explore, player)
+		end
+	end)
+end
+
+local function spawnOnSpot(record: SpotRecord)
+	local id = record.Spot:GetAttribute("CharacterId")
+	if type(id) ~= "string" or not Designs[id] then
+		return
+	end
+	local model = buildNPC(Designs[id])
+	if not model then
+		return
+	end
+	standOn(model, record.Spot, id == "CorruptedSoldier")
+	addTalkPrompt(model, id, record.Phase)
+	record.Model = model
+end
+
+-- Shows the characters whose spot matches the current story phase.
+local function refreshVisibility()
+	local phase = StoryService.GetPhase()
+	for _, record in spots do
+		local model = record.Model
+		local spot = record.Spot
+		if model and spot.Parent then
+			local visible = record.Phase == "Any" or record.Phase == phase
+			model.Parent = if visible then spot.Parent else nil
+		end
+	end
+end
+
+local function bindSpot(inst: Instance)
+	if not inst:IsA("BasePart") then
+		return
+	end
+	local phase = inst:GetAttribute("Phase")
+	local record: SpotRecord = { Spot = inst, Model = nil, Phase = if type(phase) == "string" then phase else "Any" }
+	table.insert(spots, record)
+	spawnOnSpot(record)
+	refreshVisibility()
+	-- Forget spots (and their characters) when the level is rebuilt.
+	inst.AncestryChanged:Connect(function()
+		if inst:IsDescendantOf(workspace) then
+			return
+		end
+		local index = table.find(spots, record)
+		if index then
+			table.remove(spots, index)
+		end
+		if record.Model then
+			record.Model:Destroy()
+		end
+	end)
+end
+
+------------------------------------------------------------------------------
+-- Public API
+------------------------------------------------------------------------------
 
 function CharacterService.Init()
+	Remotes.ChangeOutfit.OnServerEvent:Connect(onChangeOutfit)
+
 	local function onPlayer(player: Player)
 		player.CharacterAdded:Connect(function(character)
-			dress(player, character)
+			dressPlayer(player, character)
 		end)
 		if player.Character then
-			task.spawn(dress, player, player.Character)
+			task.spawn(dressPlayer, player, player.Character)
 		end
 	end
 	Players.PlayerAdded:Connect(onPlayer)
 	for _, player in Players:GetPlayers() do
 		onPlayer(player)
 	end
+
+	ReplicatedStorage:GetAttributeChangedSignal("Phase"):Connect(refreshVisibility)
+	Zones.BindTag("CharacterSpot", bindSpot)
+end
+
+-- Exposed for tests: dress any R15 model as a design id.
+function CharacterService.DressModel(model: Model, designId: string): boolean
+	local design = Designs[designId]
+	return design ~= nil and Outfitter.Apply(model, design)
 end
 
 return CharacterService

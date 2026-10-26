@@ -49,11 +49,13 @@ To stop, press the red ■ *Stop* button (or **Shift+F5**).
 | Use inventory item | **1-4**, or click the slot | Tap the slot |
 | Drop item | Click the small **X** on the slot | Tap the **X** |
 | Brightness (too dark?) | Click **Brightness** under the objective | Tap **Brightness** |
+| Change Jax's outfit | Click **Outfit** under the objective | Tap **Outfit** |
+| Talk to Serra, Kade, Lira | Press **E** at the Talk prompt | Tap the prompt |
 | Skip subtitle / close note | **Enter**, or click it | Tap it |
 
 ### How to survive
 
-- **The Hollow hunts by sound and sight.** Sprinting is loud, walking is
+- **The Rift Stalker hunts by sound and sight.** Sprinting is loud, walking is
   quiet, crouching is almost silent. Your flashlight lets it see you from
   further away.
 - **Hide in tall grass**: crouch inside a grass patch and it can't see you
@@ -139,7 +141,7 @@ src/
       FlashlightService.luau battery and light (server-owned)
       CheckpointService.luau checkpoints, respawn, fall deaths
       PuzzleService.luau     temple dial puzzle and door
-      StalkerService.luau    the Hollow's AI state machine
+      StalkerService.luau    the Rift Stalker's AI state machine
       EscapeService.luau     collapse set-piece: debris, chase, bridge
       GameService.luau       end of run, results, Play Again
   client/                    -> StarterPlayerScripts.Client
@@ -169,7 +171,7 @@ docs/
 | Nothing happens / I fall forever when I press Play | Open *View > Output* and look for red text. Copy the red lines and send them over. |
 | "Rojo" errors | You don't need Rojo just to play: open `Riftfall.rbxlx` directly. |
 | It's too dark to see | Press **F** for the flashlight, or click **Brightness** under the objective panel. To change it for everyone, raise the values in `Config.Lighting` (`src/shared/Config.luau`). |
-| The creature never moves | Check Output for `[StalkerService] AI tick failed` and send that error text. In the Explorer, `Workspace > Hollow` shows a `State` attribute (Patrol, Chase...) that helps diagnose it. |
+| The creature never moves | Check Output for `[StalkerService] AI tick failed` and send that error text. In the Explorer, `Workspace > RiftStalker` shows a `State` attribute (Patrol, Chase...) that helps diagnose it. |
 | No sound | Expected for now: no audio has been chosen yet. See "Assets and placeholders" in `docs/STATUS.md`. |
 
 **Sharing an error:** in the Output window, right-click > *Copy*, or select

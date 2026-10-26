@@ -12,7 +12,7 @@ text in Output, and send it over.
 |---|---|---|
 | A1 | Press Play | Output shows `[Riftfall] Server ready.` and `[Riftfall] Client ready.`, no red errors |
 | A2 | Look around | Night, fog, rain, burning helicopter wreck. Objective panel top-left says "Follow the trail north..." |
-| A3 | Wait 2 seconds | Mara's radio subtitles appear above the inventory bar, four lines |
+| A3 | Wait 2 seconds | Serra's subtitles appear above the inventory bar, four lines |
 | A4 | Click a subtitle | It skips to the next line |
 
 ## B. Movement and flashlight
@@ -45,15 +45,15 @@ text in Output, and send it over.
 
 | # | Do this | Expected |
 |---|---|---|
-| D1 | Walk up to the tree with red claw marks | Mara comments on them |
+| D1 | Walk up to the tree with red claw marks | Serra comments on them |
 | D2 | Read the note on the broken crate by that tree | A paper panel opens with the survivor's warning. Close with the button or Enter |
 | D3 | Reach the camp | Objective changes, "Checkpoint reached: Camp" message near the green flare |
 | D4 | Read Rourke's journal on the camp table | Journal text with the dial clue |
 | D5 | Reset your character (Esc > Reset Character) | You respawn at the camp checkpoint with your items |
 
-## E. The Hollow (enemy AI)
+## E. The Rift Stalker (enemy AI)
 
-Tip: select `Workspace > Hollow` in the Explorer while playing; its `State`
+Tip: select `Workspace > RiftStalker` in the Explorer while playing; its `State`
 attribute shows what it is doing.
 
 | # | Do this | Expected |
@@ -72,7 +72,7 @@ attribute shows what it is doing.
 
 | # | Do this | Expected |
 |---|---|---|
-| F1 | Enter the temple | "Checkpoint reached: Temple", new objective, Mara mentions the order of the sky |
+| F1 | Enter the temple | "Checkpoint reached: Temple", new objective, Serra mentions the order of the sky |
 | F2 | Examine the mural (bottom-left of the door) | Text describes EYE ? SUN |
 | F3 | Press E on each dial | Each turn cycles SUN → MOON → EYE → SPIRAL |
 | F4 | Set EYE, MOON, SUN | Dials turn purple and lock; camera shakes; the door sinks into the floor; "Checkpoint reached: Temple Door" |
@@ -84,9 +84,9 @@ attribute shows what it is doing.
 |---|---|---|
 | G1 | Run through the opened door | Red circles appear on the floor ~1.3 s before rocks fall on them; rocks never block the path |
 | G2 | Stand in a red circle when the rock lands | 30 damage |
-| G3 | Look back a few seconds after the door opened | The Hollow is chasing from the temple entrance |
-| G4 | Die during the escape | Respawn just inside the door; the Hollow is moved back and released again after a head start |
-| G5 | Climb the wooden ladder at the end of the tunnel | You climb to the cliff top; the Hollow stops at the bottom |
+| G3 | Look back a few seconds after the door opened | The Rift Stalker is chasing from the temple entrance |
+| G4 | Die during the escape | Respawn just inside the door; the Rift Stalker is moved back and released again after a head start |
+| G5 | Climb the wooden ladder at the end of the tunnel | You climb to the cliff top; the Rift Stalker stops at the bottom |
 | G6 | Cross the rope bridge | Planks fall away behind you; invisible rails stop you falling off the sides |
 | G7 | Jump off the bridge into the chasm | You die and respawn at the temple door; the bridge is whole again |
 | G8 | Reach the red flare | Results screen: time, deaths, notes found (out of 4), Rift Shard yes/no |
@@ -116,3 +116,16 @@ attribute shows what it is doing.
 |---|---|---|
 | J1 | *View > Performance stats* (or Ctrl+Shift+F1 in play) | Smooth frame rate on your machine; report the FPS if it feels choppy |
 | J2 | Run around the jungle with the flashlight on | No big frame drops |
+
+## H. Characters (concept sheet redesign)
+
+| # | Do this | Expected |
+|---|---|---|
+| H1 | Spawn | You are Jax: messy brown hair, charcoal jacket, brown harness, knee pads, backpack, glowing cyan wrist unit. No Roblox avatar items |
+| H2 | Click **Outfit** several times | Cycles Default, Stealth, Survival, Wanderer, Heavy Armor; a toast names each. Works again after respawn |
+| H3 | Look next to the crash site | Serra stands on a glowing disc as a see-through cyan hologram; **Talk** plays her lines |
+| H4 | Reach the camp | Kade (bearded, brown armour) is there; **Talk** mentions his brother Daniel |
+| H5 | In the ruins, find the slumped soldier with red visor and chest core | It does not move; the note next to it can be read |
+| H6 | Enter the temple | Lira (white lab coat, glasses, bun) is there; **Talk** helps with the mural |
+| H7 | Reach the rescue flare | Kade and Lira are waiting there; their camp/temple copies are gone |
+| H8 | Watch the creature for 10 seconds | Violet with glowing crystal spines; it briefly flickers (phases) every few seconds |

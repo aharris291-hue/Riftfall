@@ -6,7 +6,7 @@
 local ClientState = {
 	Stamina = 100,
 	Crouching = false,
-	-- 0 = the Hollow is far away, 1 = it is right next to you.
+	-- 0 = the Rift Stalker is far away, 1 = it is right next to you.
 	Danger = 0,
 	-- True while a full-screen panel (note, end screen) is open.
 	ModalOpen = false,

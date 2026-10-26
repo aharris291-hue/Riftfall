@@ -1,7 +1,7 @@
 --!strict
 -- AtmosphereController: local-only mood effects. Rain around the camera,
 -- lightning flashes, camera shake, and a "danger" value that rises as the
--- Hollow gets close (the HUD turns it into a pulsing edge glow so the threat
+-- Rift Stalker gets close (the HUD turns it into a pulsing edge glow so the threat
 -- is readable, not a cheap surprise).
 
 local Players = game:GetService("Players")
@@ -136,16 +136,16 @@ function AtmosphereController.Init()
 		)
 	end)
 
-	-- Danger meter: how close is the Hollow?
+	-- Danger meter: how close is the Rift Stalker?
 	task.spawn(function()
 		while true do
 			task.wait(0.15)
-			local hollow = workspace:FindFirstChild("Hollow")
+			local stalker = workspace:FindFirstChild("RiftStalker")
 			local character = player.Character
 			local myRoot = character and character:FindFirstChild("HumanoidRootPart")
-			local hollowRoot = hollow and hollow:FindFirstChild("HumanoidRootPart")
-			if myRoot and myRoot:IsA("BasePart") and hollowRoot and hollowRoot:IsA("BasePart") then
-				local distance = (myRoot.Position - hollowRoot.Position).Magnitude
+			local stalkerRoot = stalker and stalker:FindFirstChild("HumanoidRootPart")
+			if myRoot and myRoot:IsA("BasePart") and stalkerRoot and stalkerRoot:IsA("BasePart") then
+				local distance = (myRoot.Position - stalkerRoot.Position).Magnitude
 				ClientState.Danger = math.clamp(1 - (distance - 8) / 32, 0, 1)
 			else
 				ClientState.Danger = 0

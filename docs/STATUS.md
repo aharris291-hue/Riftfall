@@ -20,13 +20,13 @@ cloud development environment. Treat everything as untested until it passes
 - Flashlight with server-owned battery and drain; batteries recharge it
 - Two checkpoints plus a door checkpoint after the puzzle; respawn at the
   furthest one; items kept on death; falling into the chasm is fatal
-- The Hollow: patrol, investigate (hearing), chase (sight cone + line of
+- The Rift Stalker: patrol, investigate (hearing), chase (sight cone + line of
   sight), telegraphed attack, search, return; hiding in tall grass while
   crouched; flashlight increases how far it sees; pathfinding with fallback
   and stuck recovery; AI tick every 0.2 s
 - Temple dial puzzle with clues split across a mural and a journal; shared
   server state; debounced; can't re-lock or soft-lock
-- Escape set-piece: telegraphed falling rocks, the Hollow released behind the
+- Escape set-piece: telegraphed falling rocks, the Rift Stalker released behind the
   players, climbable cliff, bridge collapsing behind players with safeguards
   so nobody is stranded
 - Story: objectives (late-join safe), radio subtitles (skippable), four
@@ -66,8 +66,8 @@ cloud development environment. Treat everything as untested until it passes
 | Asset | Current | To replace |
 |---|---|---|
 | All environment art | Basic parts generated in `LevelBuilder.luau` | Model in Studio or import meshes, then load them from `ServerStorage` |
-| Player outfits | Part-built gear in `CharacterService.luau` | Layered clothing or mesh accessories you own |
-| The Hollow | Part-built stand-in (spines, ribs, rags) in `StalkerService.buildModel` | Any model with a `Humanoid` and `HumanoidRootPart` |
+| Characters (Jax, Serra, Kade, Lira, Corrupted Soldier) | Part-built outfits: data in `src/shared/CharacterDesigns.luau`, built by `src/server/Util/Outfitter.luau` | Layered clothing or mesh accessories you own |
+| The Rift Stalker | Part-built stand-in (crystal spines, plates, claws) in `StalkerService.buildModel` | Any model with a `Humanoid` and `HumanoidRootPart` |
 | Sounds | Empty IDs in `Config.Sounds` | Paste `rbxassetid://...` IDs you are allowed to use |
 | Animations | None (default Roblox avatar animations only) | Upload animations you own and play them from the client |
 | Rain particles | Default particle texture | Optional custom texture |

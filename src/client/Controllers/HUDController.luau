@@ -6,7 +6,7 @@
 --   bottom-left    health, flashlight battery, stamina
 --   bottom-center  inventory (click/tap a slot or press 1-4 to use it; the
 --                  small X drops it) and radio subtitles above it
---   screen edges   red flash when hurt, dark pulse when the Hollow is near
+--   screen edges   red flash when hurt, dark pulse when the Rift Stalker is near
 --   full screen    note reader, death screen, end-of-demo results
 
 local Players = game:GetService("Players")
@@ -19,6 +19,7 @@ local Lighting = game:GetService("Lighting")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Items = require(ReplicatedStorage.Shared.Items)
 local Story = require(ReplicatedStorage.Shared.Story)
+local CharacterDesigns = require(ReplicatedStorage.Shared.CharacterDesigns)
 local ClientState = require(script.Parent.Parent.ClientState)
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
@@ -143,6 +144,33 @@ local function buildBrightnessButton()
 		local level = BRIGHTNESS_LEVELS[index]
 		Lighting.ExposureCompensation = Config.Lighting.ExposureCompensation + level.Exposure
 		button.Text = "Brightness: " .. level.Name
+	end)
+end
+
+-- Outfit option: cycles Jax's outfits (cosmetic; the server applies it).
+local function buildOutfitButton()
+	local button = new("TextButton", {
+		Name = "Outfit",
+		Position = UDim2.fromOffset(202, 86),
+		Size = UDim2.fromOffset(154, 28),
+		BackgroundColor3 = COLORS.Panel,
+		BackgroundTransparency = 0.3,
+		BorderSizePixel = 0,
+		Font = FONT,
+		TextSize = 13,
+		TextColor3 = COLORS.Muted,
+		Text = "Outfit",
+		Parent = gui,
+	}, { corner(6) })
+	local function refresh()
+		local id = player:GetAttribute("OutfitId")
+		local design = if type(id) == "string" then CharacterDesigns.Designs[id] else nil
+		button.Text = "Outfit: " .. (if design then design.Title else "Default Outfit")
+	end
+	player:GetAttributeChangedSignal("OutfitId"):Connect(refresh)
+	refresh()
+	button.Activated:Connect(function()
+		Remotes.ChangeOutfit:FireServer()
 	end)
 end
 
@@ -782,6 +810,7 @@ function HUDController.Init()
 	buildEdges()
 	buildObjective()
 	buildBrightnessButton()
+	buildOutfitButton()
 	buildToasts()
 	buildBars()
 	buildInventory()

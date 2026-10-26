@@ -2,6 +2,23 @@
 
 Feedback from play sessions, and what was done about each point. Newest first.
 
+## Round 2 — Adam, 2026-10-26: character concept sheet
+
+Adam: "Use this to redesign the characters for the game" (sheet: *Riftfall
+Character Design and Roblox Guide*). Preview: `docs/images/character-preview.png`.
+
+| Sheet | In game |
+|---|---|
+| Jax Mercer, protagonist | Every player is Jax. Five outfits from the sheet (Default, Stealth, Survival, Wanderer, Heavy Armor), switched with the **Outfit** button; co-op partners start in different ones |
+| Serra, AI companion | Lives in Jax's wrist unit and speaks all objectives (replaces the radio operator). Appears as a cyan hologram at the crash site |
+| Kade, the veteran | NPC at the camp; his brother Daniel was on the lost expedition. Waits at the rescue flare at the end |
+| Lira, the scientist | NPC in the temple; comments on the mural. Waits at the rescue flare at the end |
+| Rift Stalker | Replaces the Hollow: violet alien with crystal spines and claws; flickers as it phases between dimensions. Same AI |
+| Corrupted Soldier | Dormant in the ruins with a note; its AI is planned for later |
+
+Not used from the sheet: the example asset IDs (they are not real assets),
+and the "alien powers" backstory, which the master prompt does not include.
+
 ## Round 1 — Adam, 2026-10-26
 
 | # | Note | Change made |

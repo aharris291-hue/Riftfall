@@ -247,6 +247,28 @@ local function makeCheckpoint(parent: Instance, name: string, order: number, pos
 	zone:SetAttribute("SpawnPosition", pad.Position + Vector3.new(0, 3.5, 0))
 end
 
+-- Where a story character stands. CharacterService spawns the character on
+-- it; Phase limits it to "Explore" (before the door opens) or "Escape"
+-- (after), or "Any".
+local function makeCharacterSpot(
+	parent: Instance,
+	characterId: string,
+	position: Vector3,
+	lookAt: Vector3,
+	phase: string
+)
+	local flatTarget = Vector3.new(lookAt.X, position.Y, lookAt.Z)
+	local spot = makeZone(
+		parent,
+		"Spot_" .. characterId .. "_" .. phase,
+		CFrame.lookAt(position, flatTarget),
+		Vector3.new(1, 1, 1),
+		"CharacterSpot"
+	)
+	spot:SetAttribute("CharacterId", characterId)
+	spot:SetAttribute("Phase", phase)
+end
+
 local function makeStoryTrigger(parent: Instance, triggerId: string, cframe: CFrame, size: Vector3)
 	local zone = makeZone(parent, "Trigger_" .. triggerId, cframe, size, "StoryTrigger")
 	zone:SetAttribute("TriggerId", triggerId)
@@ -454,6 +476,19 @@ local function buildCrashSite(level: Folder, rng: Random)
 	end
 	makePickup(site, "Battery", "Battery", Vector3.new(6, 1, 19), Color3.fromRGB(120, 200, 255))
 
+	-- Serra's hologram projects from a crashed comms drone near the spawn.
+	local projector = makePart(site, {
+		Name = "HoloProjector",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(0.3, 3.2, 3.2),
+		CFrame = CFrame.new(6, 0.15, 8) * CFrame.Angles(0, 0, math.rad(90)),
+		Material = Enum.Material.Neon,
+		Color = Color3.fromRGB(70, 220, 255),
+		CanCollide = false,
+	})
+	addLight(projector, Color3.fromRGB(70, 220, 255), 12, 1.2)
+	makeCharacterSpot(site, "Serra", Vector3.new(6, 0.3, 8), Vector3.new(0, 0, 2), "Any")
+
 	-- A rusted sign pointing the way.
 	local post = makePart(site, {
 		Name = "SignPost",
@@ -582,6 +617,7 @@ local function buildCamp(level: Folder, rng: Random)
 	makePickup(camp, "Bandage", "Bandage", Vector3.new(12, 1, 184), Color3.fromRGB(230, 225, 210))
 	makePickup(camp, "Battery", "Battery", Vector3.new(-14, 1, 186), Color3.fromRGB(120, 200, 255))
 	makeCheckpoint(camp, "Camp", 1, Vector3.new(6, 0, 174))
+	makeCharacterSpot(camp, "Kade", Vector3.new(-3, 0, 181), Vector3.new(0, 0, 168), "Explore")
 	makeStoryTrigger(camp, "Camp", CFrame.new(0, 4, 172), Vector3.new(40, 8, 10))
 
 	-- Scattered gear.
@@ -654,6 +690,20 @@ local function buildRuins(level: Folder, rng: Random)
 	makeGrassPatch(ruins, Vector3.new(-38, 0.4, 290), Vector2.new(8, 8), rng)
 
 	makePickup(ruins, "Bandage", "Bandage", Vector3.new(-38, 1, 222), Color3.fromRGB(230, 225, 210))
+
+	-- A dormant Corrupted Soldier slumped against a pillar (a warning of
+	-- what the Rift does to people; it wakes up in a later milestone).
+	makeCharacterSpot(ruins, "CorruptedSoldier", Vector3.new(-27.2, 0.4, 258), Vector3.new(0, 0.4, 262), "Any")
+	local soldierReader = makePart(ruins, {
+		Name = "SoldierReader",
+		Size = Vector3.new(4, 5, 4),
+		Position = Vector3.new(-25.5, 2.5, 258),
+		Transparency = 1,
+		CanCollide = false,
+	})
+	soldierReader:SetAttribute("NoteId", "Soldier")
+	makePrompt(soldierReader, "Examine", "Fallen soldier")
+	CollectionService:AddTag(soldierReader, "Note")
 
 	-- Stalker patrol route (invisible markers, visited in order).
 	local patrol = {
@@ -849,6 +899,7 @@ local function buildTemple(level: Folder)
 	makePickup(temple, "Battery", "Battery", Vector3.new(20, 1, 318), Color3.fromRGB(120, 200, 255))
 
 	makeStoryTrigger(temple, "Temple", CFrame.new(0, 4, 308), Vector3.new(46, 8, 8))
+	makeCharacterSpot(temple, "Lira", Vector3.new(-14, 0.4, 322), Vector3.new(0, 0.4, 308), "Explore")
 	-- Gate checkpoint is only unlocked once the puzzle is solved (see PuzzleService).
 	makeCheckpoint(temple, "Temple", 2, Vector3.new(0, 0.4, 306))
 	local escapeCheckpoint =
@@ -1040,6 +1091,9 @@ local function buildEscape(level: Folder, rng: Random)
 	sparks.Size = 3
 	sparks.Parent = flare
 	makeZone(escape, "EndZone", CFrame.new(0, deckY + 4, 528), Vector3.new(26, 8, 24), "EndZone")
+	-- Kade and Lira wait at the flare once the escape begins.
+	makeCharacterSpot(escape, "Kade", Vector3.new(-5, deckY, 524), Vector3.new(0, deckY, 505), "Escape")
+	makeCharacterSpot(escape, "Lira", Vector3.new(5, deckY, 524), Vector3.new(0, deckY, 505), "Escape")
 
 	-- Invisible walls around the cliff top and far ledge.
 	local clear = Color3.new(0, 0, 0)

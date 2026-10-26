@@ -4,7 +4,7 @@
 --
 -- Movement speed is applied on the client because Roblox characters are
 -- physically simulated by their own player. The server listens for noise
--- (how fast you move) when deciding if the Hollow hears you.
+-- (how fast you move) when deciding if the Rift Stalker hears you.
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")

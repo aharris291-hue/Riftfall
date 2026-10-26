@@ -40,6 +40,9 @@
         },
         "RunComplete": {
           "$className": "RemoteEvent"
+        },
+        "ChangeOutfit": {
+          "$className": "RemoteEvent"
         }
       }
     },

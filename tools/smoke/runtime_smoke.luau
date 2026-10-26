@@ -267,10 +267,10 @@ print("client controllers ok")
 -- Stalker model
 local Stalker = req(node("src/server/Services/StalkerService"))
 Stalker.SpawnPatrol()
-local hollow = workspace:FindFirstChild("Hollow")
+local hollow = workspace:FindFirstChild("RiftStalker")
 print("hollow:", hollow ~= nil, hollow and #hollow:GetChildren(), hollow and hollow:GetAttribute("State"))
 Stalker.StartHunt(4)
-print("hunt state:", workspace.Hollow:GetAttribute("State"))
+print("hunt state:", workspace.RiftStalker:GetAttribute("State"))
 -- Inventory rules (server)
 local fakePlayer = attrObj({ Name = "Tester" })
 fakePlayer.Parent = services.Players
@@ -285,28 +285,84 @@ assert(not Inventory.Add(fakePlayer, "Bandage", 1), "bandages now full")
 assert(Inventory.Count(fakePlayer, "Bandage") == 6, "6 bandages")
 assert(not Inventory.Add(fakePlayer, "Nope", 1), "unknown item rejected")
 print("inventory rules ok")
--- Character outfit (server)
+-- Character designs (server): dress a fake R15 rig as every design.
 local Character = req(node("src/server/Services/CharacterService"))
-local char = roblox.Instance.new("Model")
-char.Name = "TesterCharacter"
-for _, name in { "Head", "UpperTorso", "LowerTorso", "LeftFoot", "RightFoot", "LeftHand", "RightHand", "LeftUpperArm" } do
-	local part = roblox.Instance.new("Part")
-	part.Name = name
-	part.Size = roblox.Vector3.new(2, 1.6, 1)
-	part.Parent = char
+local R15 = {
+	Head = { 1.2, 1.2, 1.2 },
+	UpperTorso = { 2, 1.6, 1 },
+	LowerTorso = { 2, 0.4, 1 },
+	LeftUpperArm = { 1, 1.2, 1 },
+	RightUpperArm = { 1, 1.2, 1 },
+	LeftLowerArm = { 1, 1.1, 1 },
+	RightLowerArm = { 1, 1.1, 1 },
+	LeftHand = { 1, 0.3, 1 },
+	RightHand = { 1, 0.3, 1 },
+	LeftUpperLeg = { 1, 1.2, 1 },
+	RightUpperLeg = { 1, 1.2, 1 },
+	LeftLowerLeg = { 1, 1.1, 1 },
+	RightLowerLeg = { 1, 1.1, 1 },
+	LeftFoot = { 1, 0.3, 1 },
+	RightFoot = { 1, 0.3, 1 },
+}
+-- Bind-pose centres (feet on Y = 0, facing -Z) so gear lands where it would
+-- on a real character; also used for the preview render.
+local POSE = {
+	Head = { 0, 5.3 },
+	UpperTorso = { 0, 3.9 },
+	LowerTorso = { 0, 2.9 },
+	LeftUpperArm = { -1.5, 4.1 },
+	RightUpperArm = { 1.5, 4.1 },
+	LeftLowerArm = { -1.5, 3.0 },
+	RightLowerArm = { 1.5, 3.0 },
+	LeftHand = { -1.5, 2.3 },
+	RightHand = { 1.5, 2.3 },
+	LeftUpperLeg = { -0.5, 2.1 },
+	RightUpperLeg = { 0.5, 2.1 },
+	LeftLowerLeg = { -0.5, 0.9 },
+	RightLowerLeg = { 0.5, 0.9 },
+	LeftFoot = { -0.5, 0.15 },
+	RightFoot = { 0.5, 0.15 },
+}
+local dressed = {}
+local designIds = {}
+for id in req(node("src/shared/CharacterDesigns")).Designs do
+	table.insert(designIds, id)
 end
-roblox.Instance.new("Humanoid").Parent = char
-char.Parent = workspace
-fakePlayer.UserId = 12345
-fakePlayer.DisplayName = "Tester"
-Character.Dress(fakePlayer, char)
-local gearCount = 0
-for _, d in char:GetDescendants() do
-	if d:IsA("BasePart") and string.sub(d.Name, 1, 5) == "Gear_" then
-		gearCount += 1
+table.sort(designIds)
+for _, id in designIds do
+	local char = roblox.Instance.new("Model")
+	for name, sz in R15 do
+		local part = roblox.Instance.new("Part")
+		part.Name = name
+		part.Size = roblox.Vector3.new(sz[1], sz[2], sz[3])
+		part.CFrame = roblox.CFrame.new(POSE[name][1], POSE[name][2], 0)
+		part.Parent = char
 	end
+	local face = roblox.Instance.new("Decal")
+	face.Name = "face"
+	face.Parent = char.Head
+	char.Parent = workspace
+	assert(Character.DressModel(char, id), "dress " .. id)
+	local count = 0
+	for _, d in char:GetDescendants() do
+		if d:IsA("BasePart") and string.sub(d.Name, 1, 7) == "Outfit_" then
+			count += 1
+		end
+	end
+	assert(char.Head:FindFirstChild("face") == nil, "default face removed")
+	assert(char.Head:FindFirstChild("OutfitFace") ~= nil, "face drawn")
+	-- Re-applying must replace, not stack.
+	Character.DressModel(char, id)
+	local again = 0
+	for _, d in char:GetDescendants() do
+		if d:IsA("BasePart") and string.sub(d.Name, 1, 7) == "Outfit_" then
+			again += 1
+		end
+	end
+	assert(again == count, "re-dress keeps the same part count for " .. id)
+	print(string.format("design %-17s parts %d", id, count))
+	dressed[id] = char
 end
-print("outfit:", char:GetAttribute("ExpeditionRole"), "gear parts:", gearCount, char.Humanoid.DisplayName)
 
 -- Flashlight visuals
 local FV = req(node("src/shared/FlashlightVisuals"))
@@ -314,4 +370,44 @@ local torch = roblox.Instance.new("Part")
 local rig = FV.Create(torch, 0.5)
 FV.SetEnabled(rig, true)
 print("flashlight rig:", rig.Light.Enabled, rig.Beam.Enabled, rig.Beam.Attachment1 ~= nil)
+-- Optional: export dressed characters + the creature for the preview render.
+if process.args[2] then
+	local serde = require("@lune/serde")
+	local function exportModel(model)
+		local parts = {}
+		for _, d in model:GetDescendants() do
+			if d:IsA("BasePart") and d.Transparency < 1 then
+				local c = d.Color
+				table.insert(parts, {
+					name = d.Name,
+					size = { d.Size.X, d.Size.Y, d.Size.Z },
+					cf = { d.CFrame:GetComponents() },
+					color = { c.R, c.G, c.B },
+					transparency = d.Transparency,
+					material = d.Material.Name,
+				})
+			end
+			if d.Name == "OutfitFace" then
+				for _, f in d:GetChildren() do
+					table.insert(parts, {
+						face = true,
+						x = f.Position.X.Scale,
+						y = f.Position.Y.Scale,
+						w = f.Size.X.Scale,
+						h = f.Size.Y.Scale,
+						color = { f.BackgroundColor3.R, f.BackgroundColor3.G, f.BackgroundColor3.B },
+					})
+				end
+			end
+		end
+		return parts
+	end
+	local out = {}
+	for _, id in designIds do
+		out[id] = exportModel(dressed[id])
+	end
+	out.RiftStalker = exportModel(workspace.RiftStalker)
+	fs.writeFile(process.args[2], serde.encode("json", out))
+	print("exported", process.args[2])
+end
 print("ALL OK")
