@@ -24,6 +24,8 @@ local fakeGame = {
 			return CollectionService
 		elseif name == "Lighting" then
 			return lighting
+		elseif name == "ReplicatedStorage" then
+			return { Shared = { Config = "Config" } }
 		end
 		return game:GetService(name)
 	end,
@@ -43,7 +45,17 @@ function RandomShim:NextInteger(a, b)
 	return math.random(a, b)
 end
 
+local configChunk = luau.load(fs.readFile(repo .. "/src/shared/Config.luau"), {
+	debugName = "Config",
+	environment = { Color3 = roblox.Color3, Enum = roblox.Enum, Vector3 = roblox.Vector3 },
+})
+local Config = configChunk()
+
 local env = {
+	require = function(target)
+		assert(target == "Config", "unexpected require")
+		return Config
+	end,
 	game = fakeGame,
 	workspace = workspace,
 	Instance = roblox.Instance,

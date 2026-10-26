@@ -128,6 +128,39 @@ local function buildModel(position: Vector3): Model
 	)
 	limb("LeftLeg", Vector3.new(0.8, 3.2, 0.8), CFrame.new(-0.6, -2.4, 0))
 	limb("RightLeg", Vector3.new(0.8, 3.2, 0.8), CFrame.new(0.6, -2.4, 0))
+	-- Distinctive silhouette: a crown of bone spines, pale ribs, and long
+	-- ragged strips of what might once have been an expedition coat.
+	local bone = Color3.fromRGB(196, 186, 160)
+	for i, angle in { -40, -15, 15, 40 } do
+		local spine = limb(
+			"Spine" .. i,
+			Vector3.new(0.18, 1.4 + (i % 2) * 0.5, 0.18),
+			CFrame.new(0, 5.2, -0.4) * CFrame.Angles(math.rad(-10), 0, math.rad(angle)) * CFrame.new(0, 0.6, 0),
+			bone,
+			Enum.Material.Marble
+		)
+		spine.CanQuery = false
+	end
+	for i = 1, 4 do
+		local rib = limb(
+			"Rib" .. i,
+			Vector3.new(2.3, 0.14, 0.2),
+			CFrame.new(0, 1.4 + i * 0.5, -0.5) * CFrame.Angles(math.rad(-10), 0, 0),
+			bone,
+			Enum.Material.Marble
+		)
+		rib.CanQuery = false
+	end
+	for i, x in { -0.8, -0.25, 0.3, 0.85 } do
+		local strip = limb(
+			"Rag" .. i,
+			Vector3.new(0.45, 3.2 + (i % 2) * 0.8, 0.08),
+			CFrame.new(x, 0.9 - (i % 2) * 0.4, 0.62) * CFrame.Angles(math.rad(8), 0, math.rad(x * 6)),
+			Color3.fromRGB(58, 62, 48),
+			Enum.Material.Fabric
+		)
+		strip.CanQuery = false
+	end
 	table.clear(eyes)
 	for _, x in { -0.35, 0.35 } do
 		local eye = limb(

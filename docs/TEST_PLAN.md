@@ -23,6 +23,9 @@ text in Output, and send it over.
 | B2 | Hold Shift while moving | Faster; stamina bar drains; when empty you slow down until it refills to about a third |
 | B3 | Press C | Camera lowers, you move slowly. Press C again to stand |
 | B4 | Press F | Flashlight on, label says ON, battery bar slowly drains. Light follows where the camera looks |
+| B4b | With the light on, look around | A visible cone of light (the beam) comes out in front of you, follows the camera, and lights up the ground and trees |
+| B4c | Click **Brightness** under the objective panel | Screen gets brighter at each step: Normal, Bright, Brightest, then back to Normal |
+| B4d | Look at your character | Not your Roblox avatar: an expedition outfit with a hat, scarf, backpack and bedroll, belt and radio. Your name tag shows a role such as "Scout" |
 | B5 | Leave the light on until empty (or set `StartingBattery` low in Config) | Light turns off with a "Battery is dead" message; F won't turn it back on |
 
 ## C. Inventory and healing

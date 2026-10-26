@@ -14,6 +14,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Items = require(ReplicatedStorage.Shared.Items)
@@ -113,6 +114,37 @@ local damageFlash = 0
 ------------------------------------------------------------------------------
 -- Building
 ------------------------------------------------------------------------------
+
+-- Brightness option: brightens only this player's screen (exposure), so
+-- anyone who finds the night too dark can fix it without code changes.
+local BRIGHTNESS_LEVELS = {
+	{ Name = "Normal", Exposure = 0 },
+	{ Name = "Bright", Exposure = 0.6 },
+	{ Name = "Brightest", Exposure = 1.2 },
+}
+
+local function buildBrightnessButton()
+	local index = 1
+	local button = new("TextButton", {
+		Name = "Brightness",
+		Position = UDim2.fromOffset(16, 86),
+		Size = UDim2.fromOffset(180, 28),
+		BackgroundColor3 = COLORS.Panel,
+		BackgroundTransparency = 0.3,
+		BorderSizePixel = 0,
+		Font = FONT,
+		TextSize = 13,
+		TextColor3 = COLORS.Muted,
+		Text = "Brightness: Normal",
+		Parent = gui,
+	}, { corner(6) })
+	button.Activated:Connect(function()
+		index = index % #BRIGHTNESS_LEVELS + 1
+		local level = BRIGHTNESS_LEVELS[index]
+		Lighting.ExposureCompensation = Config.Lighting.ExposureCompensation + level.Exposure
+		button.Text = "Brightness: " .. level.Name
+	end)
+end
 
 local function buildObjective()
 	local frame = panel({
@@ -749,6 +781,7 @@ function HUDController.Init()
 	})
 	buildEdges()
 	buildObjective()
+	buildBrightnessButton()
 	buildToasts()
 	buildBars()
 	buildInventory()

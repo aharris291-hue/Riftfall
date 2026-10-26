@@ -20,6 +20,9 @@
 
 local CollectionService = game:GetService("CollectionService")
 local Lighting = game:GetService("Lighting")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage.Shared.Config)
 
 local LevelBuilder = {}
 
@@ -1109,31 +1112,31 @@ end
 ------------------------------------------------------------------------------
 
 function LevelBuilder.SetupLighting()
-	Lighting.ClockTime = 0.5
-	Lighting.Brightness = 0.6
-	Lighting.Ambient = Color3.fromRGB(18, 20, 26)
-	Lighting.OutdoorAmbient = Color3.fromRGB(40, 46, 56)
-	Lighting.EnvironmentDiffuseScale = 0.2
-	Lighting.EnvironmentSpecularScale = 0.2
+	local L = Config.Lighting
+	Lighting.ClockTime = L.ClockTime
+	Lighting.Brightness = L.Brightness
+	Lighting.ExposureCompensation = L.ExposureCompensation
+	Lighting.Ambient = L.Ambient
+	Lighting.OutdoorAmbient = L.OutdoorAmbient
+	Lighting.EnvironmentDiffuseScale = 0.4
+	Lighting.EnvironmentSpecularScale = 0.3
 	Lighting.GlobalShadows = true
 
-	if not Lighting:FindFirstChildOfClass("Atmosphere") then
-		local atmosphere = Instance.new("Atmosphere")
-		atmosphere.Density = 0.42
-		atmosphere.Offset = 0.1
-		atmosphere.Color = Color3.fromRGB(70, 84, 80)
-		atmosphere.Decay = Color3.fromRGB(30, 36, 40)
-		atmosphere.Glare = 0
-		atmosphere.Haze = 2
-		atmosphere.Parent = Lighting
-	end
-	if not Lighting:FindFirstChildOfClass("ColorCorrectionEffect") then
-		local grade = Instance.new("ColorCorrectionEffect")
-		grade.Saturation = -0.25
-		grade.Contrast = 0.1
-		grade.TintColor = Color3.fromRGB(220, 235, 230)
-		grade.Parent = Lighting
-	end
+	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere") or Instance.new("Atmosphere")
+	atmosphere.Density = L.FogDensity
+	atmosphere.Offset = 0.05
+	atmosphere.Color = Color3.fromRGB(80, 94, 96)
+	atmosphere.Decay = Color3.fromRGB(46, 54, 62)
+	atmosphere.Glare = 0
+	atmosphere.Haze = L.FogHaze
+	atmosphere.Parent = Lighting
+
+	local grade = Lighting:FindFirstChildOfClass("ColorCorrectionEffect") or Instance.new("ColorCorrectionEffect")
+	grade.Saturation = -0.15
+	grade.Contrast = 0.08
+	grade.Brightness = 0.03
+	grade.TintColor = Color3.fromRGB(225, 236, 240)
+	grade.Parent = Lighting
 end
 
 ------------------------------------------------------------------------------

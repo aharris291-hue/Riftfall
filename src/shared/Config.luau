@@ -26,9 +26,14 @@ Config.Flashlight = {
 	-- Battery drained per second while the light is on.
 	DrainPerSecond = 1.2,
 	StartingBattery = 60,
-	Range = 45,
-	Brightness = 3,
-	Angle = 55,
+	Range = 60,
+	Brightness = 6,
+	Angle = 45,
+	-- The visible beam ("light path") in front of the player.
+	BeamLength = 32,
+	BeamStartWidth = 0.6,
+	BeamEndWidth = 16,
+	BeamOpacity = 0.22, -- 0 = invisible beam, 1 = solid.
 }
 
 Config.Stalker = {
@@ -60,6 +65,19 @@ Config.Escape = {
 	DebrisWarningTime = 1.3, -- Seconds the red warning circle shows before a rock lands.
 	DebrisInterval = 0.7,
 	HuntDelay = 4, -- Seconds after the escape starts before the Stalker is released.
+}
+
+-- Night lighting. Raise Brightness / Ambient / OutdoorAmbient to make the
+-- world brighter, lower them for a darker, scarier night. FogDensity is how
+-- thick the mist is (0 = none, 1 = very thick).
+Config.Lighting = {
+	ClockTime = 0.5,
+	Brightness = 1.6,
+	ExposureCompensation = 0.35,
+	Ambient = Color3.fromRGB(52, 56, 66),
+	OutdoorAmbient = Color3.fromRGB(96, 104, 118),
+	FogDensity = 0.3,
+	FogHaze = 1,
 }
 
 Config.World = {

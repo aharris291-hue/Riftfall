@@ -203,6 +203,7 @@ env = {
 	UDim = roblox.UDim,
 	UDim2 = roblox.UDim2,
 	NumberSequence = roblox.NumberSequence,
+	NumberSequenceKeypoint = roblox.NumberSequenceKeypoint,
 	NumberRange = roblox.NumberRange,
 	ColorSequence = roblox.ColorSequence,
 	TweenInfo = {
@@ -284,4 +285,33 @@ assert(not Inventory.Add(fakePlayer, "Bandage", 1), "bandages now full")
 assert(Inventory.Count(fakePlayer, "Bandage") == 6, "6 bandages")
 assert(not Inventory.Add(fakePlayer, "Nope", 1), "unknown item rejected")
 print("inventory rules ok")
+-- Character outfit (server)
+local Character = req(node("src/server/Services/CharacterService"))
+local char = roblox.Instance.new("Model")
+char.Name = "TesterCharacter"
+for _, name in { "Head", "UpperTorso", "LowerTorso", "LeftFoot", "RightFoot", "LeftHand", "RightHand", "LeftUpperArm" } do
+	local part = roblox.Instance.new("Part")
+	part.Name = name
+	part.Size = roblox.Vector3.new(2, 1.6, 1)
+	part.Parent = char
+end
+roblox.Instance.new("Humanoid").Parent = char
+char.Parent = workspace
+fakePlayer.UserId = 12345
+fakePlayer.DisplayName = "Tester"
+Character.Dress(fakePlayer, char)
+local gearCount = 0
+for _, d in char:GetDescendants() do
+	if d:IsA("BasePart") and string.sub(d.Name, 1, 5) == "Gear_" then
+		gearCount += 1
+	end
+end
+print("outfit:", char:GetAttribute("ExpeditionRole"), "gear parts:", gearCount, char.Humanoid.DisplayName)
+
+-- Flashlight visuals
+local FV = req(node("src/shared/FlashlightVisuals"))
+local torch = roblox.Instance.new("Part")
+local rig = FV.Create(torch, 0.5)
+FV.SetEnabled(rig, true)
+print("flashlight rig:", rig.Light.Enabled, rig.Beam.Enabled, rig.Beam.Attachment1 ~= nil)
 print("ALL OK")

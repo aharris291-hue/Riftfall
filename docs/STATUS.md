@@ -36,6 +36,9 @@ cloud development environment. Treat everything as untested until it passes
   with Play Again
 - Atmosphere: night lighting, fog, colour grade, rain, lightning, camera shake
 
+- Expedition outfits for players (four role variants) instead of Roblox avatars
+- Flashlight with a visible beam aimed by the camera; per-player brightness option
+
 ## Partially implemented
 
 - **Multiplayer**: server-authoritative and designed to be co-op-safe, but no
@@ -63,7 +66,8 @@ cloud development environment. Treat everything as untested until it passes
 | Asset | Current | To replace |
 |---|---|---|
 | All environment art | Basic parts generated in `LevelBuilder.luau` | Model in Studio or import meshes, then load them from `ServerStorage` |
-| The Hollow | Blocky stand-in built in `StalkerService.buildModel` | Any model with a `Humanoid` and `HumanoidRootPart` |
+| Player outfits | Part-built gear in `CharacterService.luau` | Layered clothing or mesh accessories you own |
+| The Hollow | Part-built stand-in (spines, ribs, rags) in `StalkerService.buildModel` | Any model with a `Humanoid` and `HumanoidRootPart` |
 | Sounds | Empty IDs in `Config.Sounds` | Paste `rbxassetid://...` IDs you are allowed to use |
 | Animations | None (default Roblox avatar animations only) | Upload animations you own and play them from the client |
 | Rain particles | Default particle texture | Optional custom texture |

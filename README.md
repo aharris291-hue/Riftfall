@@ -48,6 +48,7 @@ To stop, press the red ■ *Stop* button (or **Shift+F5**).
 | Interact (pick up, read, turn) | Hold/press **E** at the prompt | Tap the prompt |
 | Use inventory item | **1-4**, or click the slot | Tap the slot |
 | Drop item | Click the small **X** on the slot | Tap the **X** |
+| Brightness (too dark?) | Click **Brightness** under the objective | Tap **Brightness** |
 | Skip subtitle / close note | **Enter**, or click it | Tap it |
 
 ### How to survive
@@ -124,12 +125,14 @@ src/
     Config.luau              every balance number in one place
     Items.luau               item definitions
     Story.luau               objectives, radio dialogue, notes
+    FlashlightVisuals.luau   flashlight light + visible beam
   server/                    -> ServerScriptService.Server
     Main.server.luau         server entry point, starts all services
     Util/PlayerData.luau     per-player run state (server-owned)
     Util/Zones.luau          zone checks + tag binding helpers
     Services/
       LevelBuilder.luau      builds the map and lighting
+      CharacterService.luau  dresses players as expedition members
       StoryService.luau      objectives, dialogue, story trigger zones
       InventoryService.luau  slot inventory, use/drop validation
       InteractionService.luau pickups and notes (ProximityPrompts)
@@ -154,6 +157,7 @@ docs/
   DESIGN.md                  game summary, slice, milestones, assumptions
   TEST_PLAN.md               what to test and what should happen
   STATUS.md                  what is done, partial, planned, untested
+  PLAYTEST_NOTES.md          feedback from play sessions and what changed
 ```
 
 ---
@@ -164,7 +168,7 @@ docs/
 |---|---|
 | Nothing happens / I fall forever when I press Play | Open *View > Output* and look for red text. Copy the red lines and send them over. |
 | "Rojo" errors | You don't need Rojo just to play: open `Riftfall.rbxlx` directly. |
-| It's too dark to see | Press **F** for the flashlight. Pickups, notes and checkpoints glow. You can also raise `Brightness` in `LevelBuilder.SetupLighting`. |
+| It's too dark to see | Press **F** for the flashlight, or click **Brightness** under the objective panel. To change it for everyone, raise the values in `Config.Lighting` (`src/shared/Config.luau`). |
 | The creature never moves | Check Output for `[StalkerService] AI tick failed` and send that error text. In the Explorer, `Workspace > Hollow` shows a `State` attribute (Patrol, Chase...) that helps diagnose it. |
 | No sound | Expected for now: no audio has been chosen yet. See "Assets and placeholders" in `docs/STATUS.md`. |
 
