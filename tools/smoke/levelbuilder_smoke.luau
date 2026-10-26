@@ -1,0 +1,111 @@
+-- Smoke test: run LevelBuilder.Build() against Lune's Roblox instance model.
+local roblox = require("@lune/roblox")
+local luau = require("@lune/luau")
+local fs = require("@lune/fs")
+local process = require("@lune/process")
+
+local repo = process.args[1]
+local source = fs.readFile(repo .. "/src/server/Services/LevelBuilder.luau")
+
+local game = roblox.Instance.new("DataModel")
+local workspace = game:GetService("Workspace")
+local lighting = game:GetService("Lighting")
+
+local tagCounts = {}
+local CollectionService = {
+	AddTag = function(_, inst, tag)
+		inst:AddTag(tag)
+		tagCounts[tag] = (tagCounts[tag] or 0) + 1
+	end,
+}
+local fakeGame = {
+	GetService = function(_, name)
+		if name == "CollectionService" then
+			return CollectionService
+		elseif name == "Lighting" then
+			return lighting
+		end
+		return game:GetService(name)
+	end,
+}
+
+local RandomShim = {}
+RandomShim.__index = RandomShim
+function RandomShim.new(seed)
+	math.randomseed(seed or 0)
+	return setmetatable({}, RandomShim)
+end
+function RandomShim:NextNumber(a, b)
+	a, b = a or 0, b or 1
+	return a + math.random() * (b - a)
+end
+function RandomShim:NextInteger(a, b)
+	return math.random(a, b)
+end
+
+local env = {
+	game = fakeGame,
+	workspace = workspace,
+	Instance = roblox.Instance,
+	Vector3 = roblox.Vector3,
+	Vector2 = roblox.Vector2,
+	CFrame = roblox.CFrame,
+	Color3 = roblox.Color3,
+	Enum = roblox.Enum,
+	UDim2 = roblox.UDim2,
+	NumberSequence = roblox.NumberSequence,
+	Random = (roblox :: any).Random or RandomShim,
+	math = math,
+	table = table,
+	string = string,
+	print = print,
+	warn = print,
+	pairs = pairs,
+	ipairs = ipairs,
+	type = type,
+	typeof = typeof,
+	tostring = tostring,
+	error = error,
+	pcall = pcall,
+	select = select,
+	setmetatable = setmetatable,
+	script = {},
+}
+
+local chunk = luau.load(source, { debugName = "LevelBuilder", environment = env })
+local LevelBuilder = chunk()
+LevelBuilder.SetupLighting()
+local level = LevelBuilder.Build()
+
+local parts, lights, prompts = 0, 0, 0
+for _, d in level:GetDescendants() do
+	if d:IsA("BasePart") then
+		parts += 1
+	elseif d:IsA("Light") then
+		lights += 1
+	elseif d.ClassName == "ProximityPrompt" then
+		prompts += 1
+	end
+end
+print("parts", parts, "lights", lights, "prompts", prompts)
+local names = {}
+for tag, n in tagCounts do
+	table.insert(names, tag .. "=" .. n)
+end
+table.sort(names)
+print("tags", table.concat(names, " "))
+
+-- Rebuild must replace, not duplicate.
+LevelBuilder.Build()
+local count = 0
+for _, c in workspace:GetChildren() do
+	if c.Name == "RiftfallLevel" then
+		count += 1
+	end
+end
+print("levels after rebuild", count)
+LevelBuilder.SpawnPickup("Battery", "Battery", roblox.Vector3.new(0, 1, 0), roblox.Color3.new(1, 1, 1))
+print("dropped folder", workspace.RiftfallLevel:FindFirstChild("Dropped") ~= nil)
+
+fs.writeFile(process.args[2], roblox.serializePlace(game, true))
+print("wrote", process.args[2])

@@ -1,0 +1,3 @@
+-- Health: this empty script replaces Roblox's default "Health" script, which
+-- would otherwise slowly regenerate health. In Riftfall, health only comes
+-- back from healing items (bandages), which makes them meaningful.

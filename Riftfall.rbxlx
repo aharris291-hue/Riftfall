@@ -1,0 +1,5071 @@
+<roblox version="4">
+  <Item class="Lighting" referent="0">
+    <Properties>
+      <string name="Name">Lighting</string>
+      <float name="Brightness">0.6</float>
+      <float name="ClockTime">0.5</float>
+      <bool name="GlobalShadows">true</bool>
+      <token name="Technology">3</token>
+    </Properties>
+  </Item>
+  <Item class="Players" referent="1">
+    <Properties>
+      <string name="Name">Players</string>
+      <bool name="CharacterAutoLoads">true</bool>
+      <float name="RespawnTime">3</float>
+    </Properties>
+  </Item>
+  <Item class="ReplicatedStorage" referent="2">
+    <Properties>
+      <string name="Name">ReplicatedStorage</string>
+    </Properties>
+    <Item class="Folder" referent="3">
+      <Properties>
+        <string name="Name">Remotes</string>
+      </Properties>
+      <Item class="RemoteEvent" referent="4">
+        <Properties>
+          <string name="Name">CameraShake</string>
+        </Properties>
+      </Item>
+      <Item class="RemoteEvent" referent="5">
+        <Properties>
+          <string name="Name">Dialogue</string>
+        </Properties>
+      </Item>
+      <Item class="RemoteEvent" referent="6">
+        <Properties>
+          <string name="Name">DropItem</string>
+        </Properties>
+      </Item>
+      <Item class="RemoteEvent" referent="7">
+        <Properties>
+          <string name="Name">InventoryChanged</string>
+        </Properties>
+      </Item>
+      <Item class="RemoteEvent" referent="8">
+        <Properties>
+          <string name="Name">RequestReplay</string>
+        </Properties>
+      </Item>
+      <Item class="RemoteEvent" referent="9">
+        <Properties>
+          <string name="Name">RunComplete</string>
+        </Properties>
+      </Item>
+      <Item class="RemoteEvent" referent="10">
+        <Properties>
+          <string name="Name">SetCrouch</string>
+        </Properties>
+      </Item>
+      <Item class="RemoteEvent" referent="11">
+        <Properties>
+          <string name="Name">ShowNote</string>
+        </Properties>
+      </Item>
+      <Item class="RemoteEvent" referent="12">
+        <Properties>
+          <string name="Name">Toast</string>
+        </Properties>
+      </Item>
+      <Item class="RemoteEvent" referent="13">
+        <Properties>
+          <string name="Name">ToggleFlashlight</string>
+        </Properties>
+      </Item>
+      <Item class="RemoteEvent" referent="14">
+        <Properties>
+          <string name="Name">UseItem</string>
+        </Properties>
+      </Item>
+    </Item>
+    <Item class="Folder" referent="15">
+      <Properties>
+        <string name="Name">Shared</string>
+      </Properties>
+      <Item class="ModuleScript" referent="16">
+        <Properties>
+          <string name="Name">Config</string>
+          <string name="Source"><![CDATA[--!strict
+-- Config: every tunable number for the demo lives here, so balance changes
+-- never require digging through gameplay code.
+
+local Config = {}
+
+Config.Player = {
+	WalkSpeed = 12,
+	SprintSpeed = 20,
+	CrouchSpeed = 6,
+	MaxStamina = 100,
+	StaminaDrainPerSecond = 22,
+	StaminaRegenPerSecond = 14,
+	-- Stamina must refill to this before sprinting is allowed again after running dry.
+	StaminaRecoverThreshold = 30,
+}
+
+Config.Inventory = {
+	SlotCount = 4,
+	-- Seconds a player must wait between item uses (stops spam/exploit requests).
+	UseCooldown = 1.0,
+}
+
+Config.Flashlight = {
+	MaxBattery = 100,
+	-- Battery drained per second while the light is on.
+	DrainPerSecond = 1.2,
+	StartingBattery = 60,
+	Range = 45,
+	Brightness = 3,
+	Angle = 55,
+}
+
+Config.Stalker = {
+	MaxHealth = 1000, -- The demo enemy cannot be killed; it is avoided, not fought.
+	PatrolSpeed = 7,
+	InvestigateSpeed = 11,
+	ChaseSpeed = 17,
+	HuntSpeed = 16, -- Speed during the scripted escape sequence.
+	SightRange = 55,
+	SightRangeFlashlightOn = 80, -- Your light makes you easier to spot.
+	SightHalfAngle = 60, -- Degrees either side of where it is facing.
+	HearingSprint = 45,
+	HearingWalk = 16,
+	HearingCrouch = 5,
+	HidingRevealDistance = 7, -- Hidden players are only noticed this close.
+	AttackRange = 5.5,
+	AttackWindup = 0.45, -- Telegraph before the swing lands (fair horror).
+	AttackDamage = 25,
+	AttackCooldown = 1.6,
+	LoseSightTime = 4, -- Seconds without seeing you before it starts searching.
+	SearchTime = 7,
+	InvestigateTime = 5,
+	TickInterval = 0.2, -- AI update rate in seconds.
+	RepathInterval = 0.6,
+}
+
+Config.Escape = {
+	DebrisDamage = 30,
+	DebrisWarningTime = 1.3, -- Seconds the red warning circle shows before a rock lands.
+	DebrisInterval = 0.7,
+	HuntDelay = 4, -- Seconds after the escape starts before the Stalker is released.
+}
+
+Config.World = {
+	KillHeight = -40, -- Falling below this Y position is fatal.
+}
+
+-- Sound asset IDs. These are EMPTY on purpose: no audio has been chosen yet,
+-- and made-up IDs would not work. To add a sound, find one you are allowed to
+-- use in the Creator Store (Toolbox > Audio), copy its number, and paste it
+-- here as "rbxassetid://123456789". Empty entries are simply skipped.
+Config.Sounds = {
+	Rain = "",
+	Thunder = "",
+	Heartbeat = "",
+	Rumble = "",
+	Pickup = "",
+}
+
+return Config
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="17">
+        <Properties>
+          <string name="Name">Items</string>
+          <string name="Source"><![CDATA[--!strict
+-- Items: the definition of every item in the demo. The server reads these
+-- definitions to decide what an item does; the client only uses them for
+-- names, colors, and descriptions in the UI.
+
+export type ItemDef = {
+	Id: string,
+	DisplayName: string,
+	Description: string,
+	MaxStack: number,
+	Color: Color3,
+	-- Key items cannot be dropped, so progress can never be soft-locked.
+	KeyItem: boolean,
+	-- Seconds the use action takes (the player is told it is in progress).
+	UseTime: number,
+	HealAmount: number?,
+	BatteryAmount: number?,
+}
+
+local Items: { [string]: ItemDef } = {
+	Bandage = {
+		Id = "Bandage",
+		DisplayName = "Bandage",
+		Description = "Field dressing. Restores 35 health.",
+		MaxStack = 3,
+		Color = Color3.fromRGB(230, 225, 210),
+		KeyItem = false,
+		UseTime = 1.5,
+		HealAmount = 35,
+	},
+	Battery = {
+		Id = "Battery",
+		DisplayName = "Battery",
+		Description = "Recharges your flashlight by 50%.",
+		MaxStack = 3,
+		Color = Color3.fromRGB(120, 200, 255),
+		KeyItem = false,
+		UseTime = 0.8,
+		BatteryAmount = 50,
+	},
+	RiftShard = {
+		Id = "RiftShard",
+		DisplayName = "Rift Shard",
+		Description = "A warm, humming stone fragment. Evidence for the expedition.",
+		MaxStack = 1,
+		Color = Color3.fromRGB(190, 110, 255),
+		KeyItem = true,
+		UseTime = 0,
+	},
+}
+
+return Items
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="18">
+        <Properties>
+          <string name="Name">Story</string>
+          <string name="Source"><![CDATA[--!strict
+-- Story: all player-facing writing for the Chapter 1 demo in one place:
+-- objectives, radio dialogue, and readable notes. Edit text here freely.
+
+export type Line = {
+	Speaker: string,
+	Text: string,
+	Duration: number,
+}
+
+local Story = {}
+
+Story.Objectives = {
+	Start = "Follow the trail north toward the distress signal",
+	Camp = "Search the abandoned expedition camp",
+	Ruins = "Cross the ruins and enter the temple. Stay out of sight.",
+	Puzzle = "Open the sealed temple door",
+	Escape = "The temple is collapsing. GET OUT!",
+	Bridge = "Climb the cliff and cross the bridge to the flare",
+	Done = "Signal reached. Chapter 1 demo complete.",
+}
+
+-- Radio operator: Mara Voss, coordinating from the expedition boat.
+-- The player is "Pathfinder", the expedition's scout.
+Story.Dialogue = {
+	Intro = {
+		{
+			Speaker = "MARA (radio)",
+			Text = "Pathfinder, do you copy? The chopper went down hard. Are you hurt?",
+			Duration = 4.5,
+		},
+		{
+			Speaker = "MARA (radio)",
+			Text = "The distress signal is still broadcasting. North of you, past the old trail.",
+			Duration = 4.5,
+		},
+		{
+			Speaker = "MARA (radio)",
+			Text = "Same frequency the Rourke expedition used. Twelve years ago.",
+			Duration = 4,
+		},
+		{
+			Speaker = "MARA (radio)",
+			Text = "Press F for your flashlight. Save the batteries. I mean it.",
+			Duration = 4,
+		},
+	},
+	ClawMarks = {
+		{
+			Speaker = "MARA (radio)",
+			Text = "What are you looking at? ...Those aren't from any animal I know.",
+			Duration = 4,
+		},
+	},
+	Camp = {
+		{
+			Speaker = "MARA (radio)",
+			Text = "That's Rourke's camp. Nobody's been here in years. Look for anything useful.",
+			Duration = 4.5,
+		},
+	},
+	Ruins = {
+		{
+			Speaker = "MARA (radio)",
+			Text = "Signal's coming from inside those ruins. Something is moving on my thermal...",
+			Duration = 4.5,
+		},
+		{
+			Speaker = "MARA (radio)",
+			Text = "Stay low in the tall grass. Press C to crouch. Don't let it see you.",
+			Duration = 4.5,
+		},
+	},
+	Temple = {
+		{
+			Speaker = "MARA (radio)",
+			Text = "A sealed door? Rourke's notes said something about the order of the sky.",
+			Duration = 4.5,
+		},
+	},
+	Solved = {
+		{
+			Speaker = "MARA (radio)",
+			Text = "It's opening! Wait... the readings just spiked. The whole mountain is shaking!",
+			Duration = 4,
+		},
+		{
+			Speaker = "MARA (radio)",
+			Text = "Run, Pathfinder! Through the door and up the cliff! I'm dropping a flare!",
+			Duration = 4,
+		},
+	},
+	Bridge = {
+		{ Speaker = "MARA (radio)", Text = "Climb! That bridge won't hold for long!", Duration = 3.5 },
+	},
+	Done = {
+		{
+			Speaker = "MARA (radio)",
+			Text = "I see you! You made it. Pathfinder... what WAS that thing?",
+			Duration = 4.5,
+		},
+	},
+}
+
+-- Readable notes found in the world. The camp journal holds the puzzle clue.
+Story.Notes = {
+	Scrawl = {
+		Title = "Scratched into a crate",
+		Body = "IT HUNTS BY SOUND\n\nIt hears you run. It hears you breathe.\nStay low. Stay in the grass.\nIt only sees what moves in the open.\n\nDON'T LET IT SEE YOUR LIGHT",
+	},
+	Journal = {
+		Title = "Dr. Elias Rourke - Field Journal",
+		Body = 'Day 19.\nThe Vael built their door to answer only those who knew the old sky.\n\nThe carving above the door is worn, but the verse survives:\n"First the EYE that watches. Last the SUN that sleeps.\nBetween them the MOON is held."\n\nThree dials. Left to right. I am certain of it now.\n\nSomething answers when we work at night. Okafor says it is the wind.\nIt is not the wind.',
+	},
+	Mural = {
+		Title = "Temple mural",
+		Body = "A faded carving shows three symbols in a row above a great door.\n\nThe first is an EYE.\nThe middle symbol has crumbled away.\nThe last is a SUN.\n\nBeneath it, figures flee from a crack in the mountain.",
+	},
+	Recording = {
+		Title = "Torn page near the shard",
+		Body = "...the shards hum louder near the crack. Twelve of us came. Four are left.\nThe door was never meant to keep us out.\nIt was meant to keep something IN.\n\n- E.R.",
+	},
+}
+
+return Story
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="ServerScriptService" referent="19">
+    <Properties>
+      <string name="Name">ServerScriptService</string>
+    </Properties>
+    <Item class="Folder" referent="20">
+      <Properties>
+        <string name="Name">Server</string>
+      </Properties>
+      <Item class="Script" referent="21">
+        <Properties>
+          <string name="Name">Main</string>
+          <token name="RunContext">0</token>
+          <string name="Source"><![CDATA[--!strict
+-- Main (server): the single entry point for all server code. It builds the
+-- world, starts each service in order, and wires services together.
+--
+-- Where things live:
+--   ServerScriptService/Server/Main            this script
+--   ServerScriptService/Server/Services/*      one module per game system
+--   ServerScriptService/Server/Util/*          shared helpers
+--   ReplicatedStorage/Shared/*                 config, items, story text
+--   ReplicatedStorage/Remotes/*                client <-> server messages
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Items = require(ReplicatedStorage.Shared.Items)
+local Services = script.Parent.Services
+local PlayerData = require(script.Parent.Util.PlayerData)
+local LevelBuilder = require(Services.LevelBuilder)
+local StoryService = require(Services.StoryService)
+local InventoryService = require(Services.InventoryService)
+local InteractionService = require(Services.InteractionService)
+local FlashlightService = require(Services.FlashlightService)
+local CheckpointService = require(Services.CheckpointService)
+local PuzzleService = require(Services.PuzzleService)
+local StalkerService = require(Services.StalkerService)
+local EscapeService = require(Services.EscapeService)
+local GameService = require(Services.GameService)
+
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+
+-- 1. World
+LevelBuilder.SetupLighting()
+LevelBuilder.Build()
+
+-- 2. Wiring between services
+InventoryService.SpawnDroppedItem = function(itemId, position)
+	local def = Items[itemId]
+	if def then
+		LevelBuilder.SpawnPickup(itemId, def.DisplayName, position, def.Color)
+	end
+end
+PuzzleService.OnSolved = function()
+	EscapeService.Begin()
+end
+CheckpointService.OnPlayerSpawned(function(player)
+	InventoryService.Sync(player)
+end)
+
+-- 3. Services
+PlayerData.Init()
+StoryService.Init()
+InventoryService.Init()
+InteractionService.Init()
+FlashlightService.Init()
+CheckpointService.Init()
+PuzzleService.Init()
+StalkerService.Init()
+EscapeService.Init()
+GameService.Init()
+
+StalkerService.SpawnPatrol()
+
+-- Crouch state is reported by the client and only used for stealth checks.
+Remotes.SetCrouch.OnServerEvent:Connect(function(player, crouching)
+	if type(crouching) == "boolean" then
+		player:SetAttribute("Crouching", crouching)
+	end
+end)
+
+Players.PlayerAdded:Connect(function(player)
+	player.CharacterRemoving:Connect(function()
+		player:SetAttribute("Crouching", false)
+	end)
+end)
+
+print("[Riftfall] Server ready.")
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="Folder" referent="22">
+        <Properties>
+          <string name="Name">Services</string>
+        </Properties>
+        <Item class="ModuleScript" referent="23">
+          <Properties>
+            <string name="Name">CheckpointService</string>
+            <string name="Source"><![CDATA[--!strict
+-- CheckpointService: remembers each player's furthest checkpoint, respawns
+-- them there after death, and handles falling off the map.
+--
+-- Checkpoints only move forward, so walking back past an old checkpoint
+-- never sends you further back on your next death.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CollectionService = game:GetService("CollectionService")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+local Zones = require(script.Parent.Parent.Util.Zones)
+local PlayerData = require(script.Parent.Parent.Util.PlayerData)
+local StoryService = require(script.Parent.StoryService)
+
+local CheckpointService = {}
+
+-- Listeners notified when a player dies / spawns (set up by other services).
+local diedListeners: { (Player) -> () } = {}
+local spawnedListeners: { (Player, Model) -> () } = {}
+
+function CheckpointService.OnPlayerDied(callback: (Player) -> ())
+	table.insert(diedListeners, callback)
+end
+
+function CheckpointService.OnPlayerSpawned(callback: (Player, Model) -> ())
+	table.insert(spawnedListeners, callback)
+end
+
+-- Sets a checkpoint if it is further along than the player's current one.
+function CheckpointService.Set(player: Player, order: number, spawnPosition: Vector3, name: string?)
+	local data = PlayerData.Get(player)
+	if not data or order <= data.CheckpointOrder then
+		return
+	end
+	data.CheckpointOrder = order
+	data.CheckpointSpawn = spawnPosition
+	if name then
+		StoryService.Toast(player, "Checkpoint reached: " .. name, "checkpoint")
+	end
+end
+
+local function onCharacterAdded(player: Player, character: Model)
+	local humanoid = character:WaitForChild("Humanoid", 10)
+	local root = character:WaitForChild("HumanoidRootPart", 10)
+	if not humanoid or not humanoid:IsA("Humanoid") or not root then
+		return
+	end
+	local data = PlayerData.Get(player)
+	if data and data.CheckpointSpawn then
+		-- Wait one frame so the default spawn placement finishes first.
+		task.defer(function()
+			if character.Parent then
+				character:PivotTo(CFrame.new(data.CheckpointSpawn :: Vector3) * CFrame.Angles(0, math.pi, 0))
+			end
+		end)
+	end
+	humanoid.Died:Connect(function()
+		local d = PlayerData.Get(player)
+		if d then
+			d.Deaths += 1
+		end
+		for _, callback in diedListeners do
+			task.spawn(callback, player)
+		end
+	end)
+	for _, callback in spawnedListeners do
+		task.spawn(callback, player, character)
+	end
+end
+
+function CheckpointService.Init()
+	local function onPlayer(player: Player)
+		player.CharacterAdded:Connect(function(character)
+			onCharacterAdded(player, character)
+		end)
+		if player.Character then
+			task.spawn(onCharacterAdded, player, player.Character)
+		end
+	end
+	Players.PlayerAdded:Connect(onPlayer)
+	for _, player in Players:GetPlayers() do
+		onPlayer(player)
+	end
+
+	task.spawn(function()
+		while true do
+			task.wait(0.25)
+			for _, player in Players:GetPlayers() do
+				local _, humanoid, root = PlayerData.GetAliveCharacter(player)
+				if not humanoid or not root then
+					continue
+				end
+				-- Falling into the chasm (or out of the world) is fatal.
+				if root.Position.Y < Config.World.KillHeight then
+					humanoid.Health = 0
+					continue
+				end
+				for _, zone in CollectionService:GetTagged("Checkpoint") do
+					if zone:IsA("BasePart") and Zones.Contains(zone, root.Position) then
+						local order = zone:GetAttribute("Order")
+						local spawnPos = zone:GetAttribute("SpawnPosition")
+						local name = zone:GetAttribute("CheckpointName")
+						if type(order) == "number" and typeof(spawnPos) == "Vector3" then
+							CheckpointService.Set(player, order, spawnPos, if type(name) == "string" then name else nil)
+						end
+					end
+				end
+			end
+		end
+	end)
+end
+
+return CheckpointService
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="24">
+          <Properties>
+            <string name="Name">EscapeService</string>
+            <string name="Source"><![CDATA[--!strict
+-- EscapeService: the collapse set-piece after the door opens.
+--
+--  * Falling debris in the tunnel. Every rock is announced by a red warning
+--    circle on the floor first, so it can always be dodged.
+--  * The Hollow is released behind the players after a short head start.
+--  * The rope bridge planks fall away behind players as they cross.
+--
+-- If a player dies, they respawn at the temple door; the creature is moved
+-- back and gives them the same head start again, and any fallen bridge
+-- planks are restored, so the sequence can always be retried.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CollectionService = game:GetService("CollectionService")
+local TweenService = game:GetService("TweenService")
+local Debris = game:GetService("Debris")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+local Zones = require(script.Parent.Parent.Util.Zones)
+local PlayerData = require(script.Parent.Parent.Util.PlayerData)
+local StalkerService = require(script.Parent.StalkerService)
+local CheckpointService = require(script.Parent.CheckpointService)
+
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+
+local EscapeService = {}
+
+local active = false
+local rng = Random.new()
+
+-- Tunnel bounds that debris may land in.
+local TUNNEL_MIN_X, TUNNEL_MAX_X = -6, 6
+local TUNNEL_MIN_Z, TUNNEL_MAX_Z = 363, 428
+local CEILING_Y = 15.5
+local DEBRIS_RADIUS = 4
+
+local function effectsFolder(): Folder
+	local folder = workspace:FindFirstChild("EscapeEffects")
+	if folder and folder:IsA("Folder") then
+		return folder
+	end
+	local newFolder = Instance.new("Folder")
+	newFolder.Name = "EscapeEffects"
+	newFolder.Parent = workspace
+	return newFolder
+end
+
+local function dropDebris(landing: Vector3)
+	local folder = effectsFolder()
+	local warning = Instance.new("Part")
+	warning.Name = "DebrisWarning"
+	warning.Shape = Enum.PartType.Cylinder
+	warning.Size = Vector3.new(0.1, DEBRIS_RADIUS * 2, DEBRIS_RADIUS * 2)
+	warning.CFrame = CFrame.new(landing + Vector3.new(0, 0.25, 0)) * CFrame.Angles(0, 0, math.rad(90))
+	warning.Anchored = true
+	warning.CanCollide = false
+	warning.CanQuery = false
+	warning.Material = Enum.Material.Neon
+	warning.Color = Color3.fromRGB(255, 50, 40)
+	warning.Transparency = 0.5
+	warning.Parent = folder
+	Debris:AddItem(warning, Config.Escape.DebrisWarningTime + 1)
+
+	task.delay(Config.Escape.DebrisWarningTime, function()
+		if not active then
+			warning:Destroy()
+			return
+		end
+		local rock = Instance.new("Part")
+		rock.Name = "FallingRock"
+		rock.Size = Vector3.new(3.5, 3, 3.5)
+		rock.CFrame = CFrame.new(landing.X, CEILING_Y, landing.Z)
+			* CFrame.Angles(rng:NextNumber(0, 3), rng:NextNumber(0, 3), 0)
+		rock.Anchored = true
+		-- Rocks never collide, so they can never wall off the tunnel.
+		rock.CanCollide = false
+		rock.CanQuery = false
+		rock.Material = Enum.Material.Slate
+		rock.Color = Color3.fromRGB(80, 74, 70)
+		rock.Parent = folder
+		local fall = TweenService:Create(rock, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			CFrame = CFrame.new(landing.X, 1.5, landing.Z) * rock.CFrame.Rotation,
+		})
+		fall:Play()
+		fall.Completed:Once(function()
+			warning:Destroy()
+			for _, player in Players:GetPlayers() do
+				local _, humanoid, root = PlayerData.GetAliveCharacter(player)
+				if humanoid and root then
+					local offset = root.Position - landing
+					if Vector3.new(offset.X, 0, offset.Z).Magnitude <= DEBRIS_RADIUS and root.Position.Y < 9 then
+						humanoid:TakeDamage(Config.Escape.DebrisDamage)
+						Remotes.CameraShake:FireClient(player, 0.5, 1.5)
+					end
+				end
+			end
+			TweenService:Create(rock, TweenInfo.new(1.5), { Transparency = 1 }):Play()
+			Debris:AddItem(rock, 1.6)
+		end)
+	end)
+end
+
+local function playersInTunnel(): { BasePart }
+	local roots = {}
+	local zone = Zones.FirstTagged("EscapeZone")
+	if not zone then
+		return roots
+	end
+	for _, player in Players:GetPlayers() do
+		local _, _, root = PlayerData.GetAliveCharacter(player)
+		if root and Zones.Contains(zone, root.Position) then
+			table.insert(roots, root)
+		end
+	end
+	return roots
+end
+
+local function restoreBridge()
+	for _, plank in CollectionService:GetTagged("BridgePlank") do
+		if plank:IsA("BasePart") then
+			local home = plank:GetAttribute("HomeCFrame")
+			if typeof(home) == "CFrame" and (plank:GetAttribute("Fallen") or not plank.Anchored) then
+				plank.Anchored = true
+				plank.CFrame = home
+				plank.AssemblyLinearVelocity = Vector3.zero
+				plank.AssemblyAngularVelocity = Vector3.zero
+				plank.Transparency = 0
+				plank.CanCollide = true
+				plank:SetAttribute("Fallen", nil)
+			end
+		end
+	end
+end
+
+local function collapsePlank(plank: BasePart)
+	plank:SetAttribute("Fallen", true)
+	plank.Anchored = false
+	-- Once it has fallen out of sight, hide it (kept for restoreBridge).
+	task.delay(4, function()
+		if plank.Parent and plank:GetAttribute("Fallen") then
+			plank.Anchored = true
+			plank.Transparency = 1
+			plank.CanCollide = false
+		end
+	end)
+end
+
+-- Planks fall once every player who is on the bridge or beyond has passed
+-- them, and nobody is still behind them on the route.
+local function updateBridge()
+	local furthestBack = math.huge
+	local anyoneOnBridgeOrBeyond = false
+	for _, player in Players:GetPlayers() do
+		local _, _, root = PlayerData.GetAliveCharacter(player)
+		if root then
+			local pos = root.Position
+			if pos.Z > 460 and pos.Y > 18 then
+				anyoneOnBridgeOrBeyond = true
+			end
+			furthestBack = math.min(furthestBack, pos.Z)
+		end
+	end
+	if not anyoneOnBridgeOrBeyond then
+		return
+	end
+	for _, plank in CollectionService:GetTagged("BridgePlank") do
+		if plank:IsA("BasePart") and plank.Anchored and not plank:GetAttribute("Fallen") then
+			if plank.Position.Z < furthestBack - 6 then
+				collapsePlank(plank)
+			end
+		end
+	end
+end
+
+-- Someone standing on the cliff top while planks are missing means they
+-- were left behind: rebuild the bridge so they are never stranded.
+local function rescueStragglers()
+	for _, player in Players:GetPlayers() do
+		local data = PlayerData.Get(player)
+		local _, _, root = PlayerData.GetAliveCharacter(player)
+		if root and data and not data.Finished then
+			local pos = root.Position
+			if pos.Z > 445 and pos.Z < 461 and pos.Y > 18 then
+				for _, plank in CollectionService:GetTagged("BridgePlank") do
+					if plank:GetAttribute("Fallen") then
+						restoreBridge()
+						return
+					end
+				end
+			end
+		end
+	end
+end
+
+function EscapeService.Begin()
+	if active then
+		return
+	end
+	active = true
+	StalkerService.StartHunt(Config.Escape.HuntDelay)
+end
+
+function EscapeService.IsActive(): boolean
+	return active
+end
+
+function EscapeService.Reset()
+	active = false
+	local folder = workspace:FindFirstChild("EscapeEffects")
+	if folder then
+		folder:ClearAllChildren()
+	end
+end
+
+-- Called when a player dies during the escape.
+local function onPlayerDied(player: Player)
+	if not active then
+		return
+	end
+	-- If nobody else is still running, put the creature back so the
+	-- respawned player gets a fair head start again.
+	for _, other in Players:GetPlayers() do
+		if other ~= player then
+			local _, _, root = PlayerData.GetAliveCharacter(other)
+			if root and root.Position.Z > 300 and root.Position.Z < 447 and root.Position.Y < 18 then
+				return
+			end
+		end
+	end
+	StalkerService.StartHunt(Config.Escape.HuntDelay + Players.RespawnTime)
+	restoreBridge()
+end
+
+function EscapeService.Init()
+	CheckpointService.OnPlayerDied(onPlayerDied)
+
+	task.spawn(function()
+		local lastDebris = 0
+		while true do
+			task.wait(0.2)
+			if not active then
+				continue
+			end
+			local now = os.clock()
+			if now - lastDebris >= Config.Escape.DebrisInterval then
+				local roots = playersInTunnel()
+				if #roots > 0 then
+					lastDebris = now
+					local root = roots[rng:NextInteger(1, #roots)]
+					-- Aim near (and slightly ahead of) a running player.
+					local x = math.clamp(root.Position.X + rng:NextNumber(-5, 5), TUNNEL_MIN_X, TUNNEL_MAX_X)
+					local z = math.clamp(root.Position.Z + rng:NextNumber(-3, 12), TUNNEL_MIN_Z, TUNNEL_MAX_Z)
+					dropDebris(Vector3.new(x, 0, z))
+					if rng:NextNumber() < 0.35 then
+						Remotes.CameraShake:FireAllClients(0.8, 0.5)
+					end
+				end
+			end
+			updateBridge()
+			rescueStragglers()
+		end
+	end)
+end
+
+return EscapeService
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="25">
+          <Properties>
+            <string name="Name">FlashlightService</string>
+            <string name="Source"><![CDATA[--!strict
+-- FlashlightService: the server owns the battery level and whether the light
+-- is on. The light itself is a SpotLight on the character's head, so other
+-- players see it too. (Each client additionally aims its own light along its
+-- camera for a better feel; see client FlashlightController.)
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+local PlayerData = require(script.Parent.Parent.Util.PlayerData)
+local StoryService = require(script.Parent.StoryService)
+
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+
+local FlashlightService = {}
+
+local function getLight(player: Player): SpotLight?
+	local character = player.Character
+	local head = character and character:FindFirstChild("Head")
+	local attachment = head and head:FindFirstChild("FlashlightAttachment")
+	local light = attachment and attachment:FindFirstChild("Flashlight")
+	if light and light:IsA("SpotLight") then
+		return light
+	end
+	return nil
+end
+
+local function createLight(character: Model)
+	local head = character:WaitForChild("Head", 10)
+	if not head or not head:IsA("BasePart") then
+		return
+	end
+	local attachment = Instance.new("Attachment")
+	attachment.Name = "FlashlightAttachment"
+	attachment.Position = Vector3.new(0, 0, -0.9)
+	attachment.Parent = head
+	local light = Instance.new("SpotLight")
+	light.Name = "Flashlight"
+	light.Face = Enum.NormalId.Front
+	light.Range = Config.Flashlight.Range
+	light.Brightness = Config.Flashlight.Brightness
+	light.Angle = Config.Flashlight.Angle
+	light.Color = Color3.fromRGB(255, 244, 220)
+	light.Shadows = true
+	light.Enabled = false
+	light.Parent = attachment
+end
+
+function FlashlightService.SetOn(player: Player, on: boolean)
+	local data = PlayerData.Get(player)
+	if not data then
+		return
+	end
+	if on and data.Battery <= 0 then
+		StoryService.Toast(player, "Battery is dead. Find or use a Battery.", "warning")
+		on = false
+	end
+	player:SetAttribute("FlashlightOn", on)
+	local light = getLight(player)
+	if light then
+		light.Enabled = on
+	end
+end
+
+local function onToggle(player: Player)
+	if not PlayerData.RateLimit(player, "Flashlight", 0.2) then
+		return
+	end
+	FlashlightService.SetOn(player, not player:GetAttribute("FlashlightOn"))
+end
+
+function FlashlightService.Init()
+	Remotes.ToggleFlashlight.OnServerEvent:Connect(onToggle)
+
+	local function onPlayer(player: Player)
+		player.CharacterAdded:Connect(function(character)
+			player:SetAttribute("FlashlightOn", false)
+			createLight(character)
+		end)
+		if player.Character then
+			createLight(player.Character)
+		end
+	end
+	Players.PlayerAdded:Connect(onPlayer)
+	for _, player in Players:GetPlayers() do
+		onPlayer(player)
+	end
+
+	-- Drain batteries of lights that are on.
+	task.spawn(function()
+		local STEP = 0.5
+		while true do
+			task.wait(STEP)
+			for _, player in Players:GetPlayers() do
+				if player:GetAttribute("FlashlightOn") then
+					local data = PlayerData.Get(player)
+					if data then
+						data.Battery = math.max(0, data.Battery - Config.Flashlight.DrainPerSecond * STEP)
+						player:SetAttribute("Battery", data.Battery)
+						if data.Battery <= 0 then
+							FlashlightService.SetOn(player, false)
+						end
+					end
+				end
+			end
+		end
+	end)
+end
+
+return FlashlightService
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="26">
+          <Properties>
+            <string name="Name">GameService</string>
+            <string name="Source"><![CDATA[--!strict
+-- GameService: the start and end of a run. Detects players reaching the
+-- rescue flare, shows them their results, and handles "Play Again".
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Story = require(ReplicatedStorage.Shared.Story)
+local Zones = require(script.Parent.Parent.Util.Zones)
+local PlayerData = require(script.Parent.Parent.Util.PlayerData)
+local LevelBuilder = require(script.Parent.LevelBuilder)
+local StoryService = require(script.Parent.StoryService)
+local InventoryService = require(script.Parent.InventoryService)
+local PuzzleService = require(script.Parent.PuzzleService)
+local StalkerService = require(script.Parent.StalkerService)
+local EscapeService = require(script.Parent.EscapeService)
+
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+
+local GameService = {}
+
+local function countNotes(): number
+	local total = 0
+	for _ in Story.Notes do
+		total += 1
+	end
+	return total
+end
+
+local function finishRun(player: Player)
+	local data = PlayerData.Get(player)
+	if not data or data.Finished then
+		return
+	end
+	data.Finished = true
+	local notesRead = 0
+	for _ in data.NotesRead do
+		notesRead += 1
+	end
+	StoryService.SetObjective("Done")
+	StoryService.PlayDialogue("Done", player)
+	Remotes.RunComplete:FireClient(player, {
+		Time = os.clock() - data.StartTime,
+		Deaths = data.Deaths,
+		NotesRead = notesRead,
+		NotesTotal = countNotes(),
+		FoundShard = InventoryService.Count(player, "RiftShard") > 0,
+	})
+
+	-- When every player has made it out, the set-piece is over.
+	for _, other in Players:GetPlayers() do
+		local otherData = PlayerData.Get(other)
+		if otherData and not otherData.Finished then
+			return
+		end
+	end
+	EscapeService.Reset()
+	StalkerService.Despawn()
+end
+
+-- Rebuilds the world and restarts every player from the beginning.
+local function fullReset()
+	EscapeService.Reset()
+	PuzzleService.Reset()
+	StoryService.Reset()
+	LevelBuilder.Build()
+	PuzzleService.Reset() -- Again, now that the new dials exist.
+	StalkerService.SpawnPatrol()
+	for _, player in Players:GetPlayers() do
+		PlayerData.Reset(player)
+		InventoryService.Sync(player)
+		player:LoadCharacter()
+		StoryService.PlayDialogue("Intro", player)
+	end
+end
+
+local function onReplay(player: Player)
+	if not PlayerData.RateLimit(player, "Replay", 3) then
+		return
+	end
+	local data = PlayerData.Get(player)
+	if not data or not data.Finished then
+		return
+	end
+	for _, other in Players:GetPlayers() do
+		local otherData = PlayerData.Get(other)
+		if otherData and not otherData.Finished then
+			-- Others are still playing: restart just this player, without
+			-- resetting the world under everyone else's feet.
+			PlayerData.Reset(player)
+			InventoryService.Sync(player)
+			player:LoadCharacter()
+			return
+		end
+	end
+	fullReset()
+end
+
+function GameService.Init()
+	Remotes.RequestReplay.OnServerEvent:Connect(onReplay)
+
+	task.spawn(function()
+		while true do
+			task.wait(0.25)
+			local zone = Zones.FirstTagged("EndZone")
+			if not zone then
+				continue
+			end
+			for _, player in Players:GetPlayers() do
+				local _, _, root = PlayerData.GetAliveCharacter(player)
+				if root and Zones.Contains(zone, root.Position) then
+					finishRun(player)
+				end
+			end
+		end
+	end)
+end
+
+return GameService
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="27">
+          <Properties>
+            <string name="Name">InteractionService</string>
+            <string name="Source"><![CDATA[--!strict
+-- InteractionService: item pickups and readable notes.
+--
+-- Both use Roblox ProximityPrompts, which already work with keyboard (E),
+-- gamepad, and touch screens. The server double-checks distance before
+-- granting anything, so a modified client cannot grab items from afar.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Items = require(ReplicatedStorage.Shared.Items)
+local Zones = require(script.Parent.Parent.Util.Zones)
+local PlayerData = require(script.Parent.Parent.Util.PlayerData)
+local InventoryService = require(script.Parent.InventoryService)
+local StoryService = require(script.Parent.StoryService)
+
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+
+local MAX_INTERACT_DISTANCE = 14
+
+local InteractionService = {}
+
+local function closeEnough(player: Player, part: BasePart): boolean
+	local _, _, root = PlayerData.GetAliveCharacter(player)
+	return root ~= nil and (root.Position - part.Position).Magnitude <= MAX_INTERACT_DISTANCE
+end
+
+local function bindPickup(inst: Instance)
+	if not inst:IsA("BasePart") then
+		return
+	end
+	local part = inst
+	local prompt = part:FindFirstChildOfClass("ProximityPrompt")
+	if not prompt then
+		return
+	end
+	prompt.Triggered:Connect(function(player)
+		-- "Taken" guards against two players grabbing the same item at once.
+		if part:GetAttribute("Taken") or not closeEnough(player, part) then
+			return
+		end
+		local itemId = part:GetAttribute("ItemId")
+		local count = part:GetAttribute("Count")
+		if type(itemId) ~= "string" or type(count) ~= "number" or not Items[itemId] then
+			return
+		end
+		part:SetAttribute("Taken", true)
+		if InventoryService.Add(player, itemId, count) then
+			StoryService.Toast(player, "Picked up " .. Items[itemId].DisplayName, "good")
+			part:Destroy()
+		else
+			part:SetAttribute("Taken", nil)
+			StoryService.Toast(player, "Inventory full. Use or drop something first.", "warning")
+		end
+	end)
+end
+
+local function bindNote(inst: Instance)
+	if not inst:IsA("BasePart") then
+		return
+	end
+	local part = inst
+	local prompt = part:FindFirstChildOfClass("ProximityPrompt")
+	if not prompt then
+		return
+	end
+	prompt.Triggered:Connect(function(player)
+		if not closeEnough(player, part) then
+			return
+		end
+		local noteId = part:GetAttribute("NoteId")
+		if type(noteId) ~= "string" then
+			return
+		end
+		local data = PlayerData.Get(player)
+		if data then
+			data.NotesRead[noteId] = true
+		end
+		Remotes.ShowNote:FireClient(player, noteId)
+	end)
+end
+
+function InteractionService.Init()
+	Zones.BindTag("Pickup", bindPickup)
+	Zones.BindTag("Note", bindNote)
+end
+
+return InteractionService
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="28">
+          <Properties>
+            <string name="Name">InventoryService</string>
+            <string name="Source"><![CDATA[--!strict
+-- InventoryService: a small slot-based inventory that lives only on the
+-- server. Clients receive a read-only copy for the UI and can only *ask* to
+-- use or drop a slot; every request is validated here.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+local Items = require(ReplicatedStorage.Shared.Items)
+local PlayerData = require(script.Parent.Parent.Util.PlayerData)
+local StoryService = require(script.Parent.StoryService)
+
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+
+local InventoryService = {}
+
+-- Set by Main: spawns a world pickup (used when a player drops an item).
+InventoryService.SpawnDroppedItem = nil :: ((itemId: string, position: Vector3) -> ())?
+
+function InventoryService.Sync(player: Player)
+	local data = PlayerData.Get(player)
+	if not data then
+		return
+	end
+	local copy = {}
+	for i = 1, Config.Inventory.SlotCount do
+		local slot = data.Inventory[i]
+		copy[i] = if slot then { Id = slot.Id, Count = slot.Count } else false
+	end
+	Remotes.InventoryChanged:FireClient(player, copy)
+end
+
+-- Tries to add `count` of an item. Returns true only if everything fit.
+function InventoryService.Add(player: Player, itemId: string, count: number): boolean
+	local data = PlayerData.Get(player)
+	local def = Items[itemId]
+	if not data or not def then
+		return false
+	end
+	-- Check capacity first so a partial add never happens.
+	local room = 0
+	for i = 1, Config.Inventory.SlotCount do
+		local slot = data.Inventory[i]
+		if slot == nil then
+			room += def.MaxStack
+		elseif slot.Id == itemId then
+			room += def.MaxStack - slot.Count
+		end
+	end
+	if room < count then
+		return false
+	end
+	local remaining = count
+	for i = 1, Config.Inventory.SlotCount do
+		local slot = data.Inventory[i]
+		if slot and slot.Id == itemId and slot.Count < def.MaxStack then
+			local add = math.min(remaining, def.MaxStack - slot.Count)
+			slot.Count += add
+			remaining -= add
+		end
+		if remaining <= 0 then
+			break
+		end
+	end
+	for i = 1, Config.Inventory.SlotCount do
+		if remaining <= 0 then
+			break
+		end
+		if data.Inventory[i] == nil then
+			local add = math.min(remaining, def.MaxStack)
+			data.Inventory[i] = { Id = itemId, Count = add }
+			remaining -= add
+		end
+	end
+	InventoryService.Sync(player)
+	return true
+end
+
+function InventoryService.Count(player: Player, itemId: string): number
+	local data = PlayerData.Get(player)
+	if not data then
+		return 0
+	end
+	local total = 0
+	for i = 1, Config.Inventory.SlotCount do
+		local slot = data.Inventory[i]
+		if slot and slot.Id == itemId then
+			total += slot.Count
+		end
+	end
+	return total
+end
+
+local function removeFromSlot(data: PlayerData.Data, slotIndex: number)
+	local slot = data.Inventory[slotIndex]
+	if not slot then
+		return
+	end
+	slot.Count -= 1
+	if slot.Count <= 0 then
+		data.Inventory[slotIndex] = nil
+	end
+end
+
+local function validSlotIndex(value: any): boolean
+	return type(value) == "number" and value == math.floor(value) and value >= 1 and value <= Config.Inventory.SlotCount
+end
+
+local function onUseItem(player: Player, slotIndex: any)
+	if not validSlotIndex(slotIndex) then
+		return
+	end
+	local data = PlayerData.Get(player)
+	if not data or data.Busy then
+		return
+	end
+	if os.clock() - data.LastUse < Config.Inventory.UseCooldown then
+		return
+	end
+	local slot = data.Inventory[slotIndex]
+	if not slot then
+		return
+	end
+	local def = Items[slot.Id]
+	local _, humanoid = PlayerData.GetAliveCharacter(player)
+	if not def or not humanoid then
+		return
+	end
+
+	-- Decide whether the item would do anything before starting.
+	if def.HealAmount then
+		if humanoid.Health >= humanoid.MaxHealth then
+			StoryService.Toast(player, "Already at full health", "warning")
+			return
+		end
+	elseif def.BatteryAmount then
+		if data.Battery >= Config.Flashlight.MaxBattery then
+			StoryService.Toast(player, "Flashlight is already fully charged", "warning")
+			return
+		end
+	else
+		StoryService.Toast(player, def.DisplayName .. ": " .. def.Description, "info")
+		return
+	end
+
+	data.Busy = true
+	data.LastUse = os.clock()
+	player:SetAttribute("UsingItem", def.DisplayName)
+	task.wait(def.UseTime)
+	player:SetAttribute("UsingItem", nil)
+	data.Busy = false
+
+	-- Re-validate after the delay: the player may have died or the slot changed.
+	local _, humanoidAfter = PlayerData.GetAliveCharacter(player)
+	local slotAfter = data.Inventory[slotIndex]
+	if humanoidAfter ~= humanoid or not humanoidAfter or not slotAfter or slotAfter.Id ~= def.Id then
+		return
+	end
+	removeFromSlot(data, slotIndex)
+	if def.HealAmount then
+		humanoidAfter.Health = math.min(humanoidAfter.MaxHealth, humanoidAfter.Health + def.HealAmount)
+		StoryService.Toast(player, "+" .. def.HealAmount .. " health", "good")
+	elseif def.BatteryAmount then
+		data.Battery = math.min(Config.Flashlight.MaxBattery, data.Battery + def.BatteryAmount)
+		player:SetAttribute("Battery", data.Battery)
+		StoryService.Toast(player, "Flashlight recharged", "good")
+	end
+	InventoryService.Sync(player)
+end
+
+local function onDropItem(player: Player, slotIndex: any)
+	if not validSlotIndex(slotIndex) or not PlayerData.RateLimit(player, "Drop", 0.4) then
+		return
+	end
+	local data = PlayerData.Get(player)
+	local _, _, root = PlayerData.GetAliveCharacter(player)
+	if not data or not root or data.Busy then
+		return
+	end
+	local slot = data.Inventory[slotIndex]
+	if not slot then
+		return
+	end
+	local def = Items[slot.Id]
+	if not def or def.KeyItem then
+		StoryService.Toast(player, "You can't drop that. You'll need it.", "warning")
+		return
+	end
+	removeFromSlot(data, slotIndex)
+	InventoryService.Sync(player)
+	if InventoryService.SpawnDroppedItem then
+		InventoryService.SpawnDroppedItem(def.Id, root.Position + root.CFrame.LookVector * 3 - Vector3.new(0, 2, 0))
+	end
+	StoryService.Toast(player, "Dropped " .. def.DisplayName, "info")
+end
+
+function InventoryService.Init()
+	Remotes.UseItem.OnServerEvent:Connect(onUseItem)
+	Remotes.DropItem.OnServerEvent:Connect(onDropItem)
+end
+
+return InventoryService
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="29">
+          <Properties>
+            <string name="Name">LevelBuilder</string>
+            <string name="Source"><![CDATA[--!strict
+-- LevelBuilder: builds the whole Chapter 1 demo map out of simple parts.
+--
+-- Why build the map in code? It keeps the entire game in plain text files
+-- (easy to review, version, and rebuild), and it lets "Play Again" reset the
+-- world by rebuilding it. Gameplay services never hold direct references to
+-- map parts; they find them through CollectionService tags, so a rebuilt map
+-- is picked up automatically.
+--
+-- Layout (the player travels toward +Z, "north"):
+--   Z  -20 ..  60  Crash site (spawn)
+--   Z   60 .. 160  Jungle trail (claw marks + survivor note)
+--   Z  160 .. 210  Abandoned camp (checkpoint, journal with puzzle clue)
+--   Z  210 .. 300  Ruins courtyard (the Stalker patrols, tall grass to hide in)
+--   Z  300 .. 360  Temple interior (dial puzzle, sealed door)
+--   Z  360 .. 430  Collapsing tunnel (escape sequence)
+--   Z  430 .. 460  Cliff (ladder truss up to Y 24)
+--   Z  460 .. 510  Rope bridge over a chasm
+--   Z  510 .. 545  Flare landing zone (end of demo)
+
+local CollectionService = game:GetService("CollectionService")
+local Lighting = game:GetService("Lighting")
+
+local LevelBuilder = {}
+
+local LEVEL_NAME = "RiftfallLevel"
+
+type PartProps = { [string]: any }
+
+local currentLevel: Folder? = nil
+
+-- Creates an anchored part with sensible defaults, applying any overrides.
+local function makePart(parent: Instance, props: PartProps): Part
+	local part = Instance.new("Part")
+	part.Anchored = true
+	part.TopSurface = Enum.SurfaceType.Smooth
+	part.BottomSurface = Enum.SurfaceType.Smooth
+	part.Material = Enum.Material.SmoothPlastic
+	for key, value in props do
+		(part :: any)[key] = value
+	end
+	part.Parent = parent
+	return part
+end
+
+-- Invisible, non-colliding box used as a trigger zone or marker.
+local function makeZone(parent: Instance, name: string, cframe: CFrame, size: Vector3, tag: string): Part
+	local zone = makePart(parent, {
+		Name = name,
+		CFrame = cframe,
+		Size = size,
+		Transparency = 1,
+		CanCollide = false,
+		CanQuery = false,
+		CanTouch = false,
+		CastShadow = false,
+	})
+	CollectionService:AddTag(zone, tag)
+	return zone
+end
+
+local function makePrompt(
+	parent: Instance,
+	actionText: string,
+	objectText: string,
+	holdDuration: number?
+): ProximityPrompt
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.ActionText = actionText
+	prompt.ObjectText = objectText
+	prompt.HoldDuration = holdDuration or 0
+	prompt.MaxActivationDistance = 9
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = parent
+	return prompt
+end
+
+local function addLight(parent: Instance, color: Color3, range: number, brightness: number): PointLight
+	local light = Instance.new("PointLight")
+	light.Color = color
+	light.Range = range
+	light.Brightness = brightness
+	light.Shadows = false
+	light.Parent = parent
+	return light
+end
+
+-- A big text label painted on one face of a part (signs, dial symbols, mural).
+local function addSurfaceText(part: BasePart, face: Enum.NormalId, text: string, color: Color3): TextLabel
+	local gui = Instance.new("SurfaceGui")
+	gui.Face = face
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 40
+	gui.LightInfluence = 0.3
+	gui.Parent = part
+	local label = Instance.new("TextLabel")
+	label.Name = "Label"
+	label.BackgroundTransparency = 1
+	label.Size = UDim2.fromScale(1, 1)
+	label.Font = Enum.Font.Fantasy
+	label.TextScaled = true
+	label.TextColor3 = color
+	label.TextStrokeTransparency = 0.4
+	label.Text = text
+	label.Parent = gui
+	return label
+end
+
+------------------------------------------------------------------------------
+-- Scenery helpers
+------------------------------------------------------------------------------
+
+local function makeTree(parent: Instance, position: Vector3, rng: Random)
+	local height = rng:NextNumber(18, 32)
+	local radius = rng:NextNumber(1.4, 2.8)
+	local model = Instance.new("Model")
+	model.Name = "Tree"
+	makePart(model, {
+		Name = "Trunk",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(height, radius * 2, radius * 2),
+		CFrame = CFrame.new(position + Vector3.new(0, height / 2, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		Material = Enum.Material.Wood,
+		Color = Color3.fromRGB(58, 44, 34),
+	})
+	for i = 1, 2 do
+		local size = rng:NextNumber(10, 16)
+		makePart(model, {
+			Name = "Canopy",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(size, size, size),
+			Position = position + Vector3.new(rng:NextNumber(-3, 3), height - 2 + i * 3, rng:NextNumber(-3, 3)),
+			Material = Enum.Material.LeafyGrass,
+			Color = Color3.fromRGB(28, 52 + rng:NextInteger(0, 20), 30),
+			CanCollide = false,
+			CanQuery = false,
+			CastShadow = false,
+		})
+	end
+	model.Parent = parent
+end
+
+local function makeRock(parent: Instance, position: Vector3, size: Vector3, rng: Random)
+	makePart(parent, {
+		Name = "Rock",
+		Size = size,
+		CFrame = CFrame.new(position)
+			* CFrame.Angles(rng:NextNumber(-0.3, 0.3), rng:NextNumber(0, math.pi), rng:NextNumber(-0.3, 0.3)),
+		Material = Enum.Material.Slate,
+		Color = Color3.fromRGB(70, 72, 74),
+	})
+end
+
+-- Tall grass: purely visual blades plus an invisible "HidingSpot" zone.
+local function makeGrassPatch(parent: Instance, center: Vector3, size: Vector2, rng: Random)
+	local model = Instance.new("Model")
+	model.Name = "TallGrass"
+	makeZone(
+		model,
+		"HidingZone",
+		CFrame.new(center + Vector3.new(0, 3, 0)),
+		Vector3.new(size.X, 6, size.Y),
+		"HidingSpot"
+	)
+	local bladeCount = math.floor(size.X * size.Y / 6)
+	for _ = 1, bladeCount do
+		local h = rng:NextNumber(3.5, 5.5)
+		local offset =
+			Vector3.new(rng:NextNumber(-size.X / 2, size.X / 2), h / 2, rng:NextNumber(-size.Y / 2, size.Y / 2))
+		makePart(model, {
+			Name = "Blade",
+			Size = Vector3.new(0.4, h, 0.4),
+			CFrame = CFrame.new(center + offset)
+				* CFrame.Angles(rng:NextNumber(-0.25, 0.25), rng:NextNumber(0, math.pi), rng:NextNumber(-0.25, 0.25)),
+			Material = Enum.Material.Grass,
+			Color = Color3.fromRGB(64, 92 + rng:NextInteger(0, 25), 44),
+			CanCollide = false,
+			CanQuery = false,
+			CastShadow = false,
+		})
+	end
+	model.Parent = parent
+end
+
+local function makePickup(parent: Instance, itemId: string, displayName: string, position: Vector3, color: Color3)
+	local part = makePart(parent, {
+		Name = itemId .. "Pickup",
+		Size = Vector3.new(1.2, 1.2, 1.2),
+		Position = position,
+		Material = Enum.Material.Neon,
+		Color = color,
+		CanCollide = false,
+		CastShadow = false,
+	})
+	part:SetAttribute("ItemId", itemId)
+	part:SetAttribute("Count", 1)
+	-- A faint glow keeps pickups findable on low graphics settings (fairness).
+	addLight(part, color, 8, 0.8)
+	makePrompt(part, "Pick up", displayName)
+	CollectionService:AddTag(part, "Pickup")
+end
+
+local function makeNote(parent: Instance, noteId: string, label: string, position: Vector3)
+	local part = makePart(parent, {
+		Name = noteId .. "Note",
+		Size = Vector3.new(1.4, 0.1, 1.8),
+		CFrame = CFrame.new(position) * CFrame.Angles(0, math.rad(15), 0),
+		Material = Enum.Material.Fabric,
+		Color = Color3.fromRGB(225, 215, 180),
+		CanCollide = false,
+	})
+	part:SetAttribute("NoteId", noteId)
+	addLight(part, Color3.fromRGB(255, 240, 200), 6, 0.6)
+	makePrompt(part, "Read", label)
+	CollectionService:AddTag(part, "Note")
+end
+
+local function makeCheckpoint(parent: Instance, name: string, order: number, position: Vector3)
+	local pad = makePart(parent, {
+		Name = "Checkpoint_" .. name,
+		Size = Vector3.new(6, 0.4, 6),
+		Position = position + Vector3.new(0, 0.2, 0),
+		Material = Enum.Material.Slate,
+		Color = Color3.fromRGB(60, 60, 64),
+	})
+	local flare = makePart(parent, {
+		Name = "CheckpointFlare",
+		Size = Vector3.new(0.4, 2.5, 0.4),
+		Position = position + Vector3.new(2.5, 1.65, 2.5),
+		Material = Enum.Material.Neon,
+		Color = Color3.fromRGB(80, 255, 140),
+		CanCollide = false,
+	})
+	addLight(flare, Color3.fromRGB(80, 255, 140), 14, 1)
+	local zone = makeZone(
+		parent,
+		"CheckpointZone_" .. name,
+		CFrame.new(position + Vector3.new(0, 4, 0)),
+		Vector3.new(14, 8, 14),
+		"Checkpoint"
+	)
+	zone:SetAttribute("CheckpointName", name)
+	zone:SetAttribute("Order", order)
+	zone:SetAttribute("SpawnPosition", pad.Position + Vector3.new(0, 3.5, 0))
+end
+
+local function makeStoryTrigger(parent: Instance, triggerId: string, cframe: CFrame, size: Vector3)
+	local zone = makeZone(parent, "Trigger_" .. triggerId, cframe, size, "StoryTrigger")
+	zone:SetAttribute("TriggerId", triggerId)
+end
+
+local function makeWall(
+	parent: Instance,
+	from: Vector3,
+	to: Vector3,
+	height: number,
+	thickness: number,
+	material: Enum.Material,
+	color: Color3,
+	transparency: number?
+)
+	local mid = (from + to) / 2
+	local length = (to - from).Magnitude
+	makePart(parent, {
+		Name = "Wall",
+		Size = Vector3.new(thickness, height, length),
+		CFrame = CFrame.lookAt(mid + Vector3.new(0, height / 2, 0), to + Vector3.new(0, height / 2, 0)),
+		Material = material,
+		Color = color,
+		Transparency = transparency or 0,
+	})
+end
+
+------------------------------------------------------------------------------
+-- Sections
+------------------------------------------------------------------------------
+
+-- Returns the X position of the trail's center line at a given Z, so trees
+-- can avoid it. The trail gently winds instead of being a straight corridor.
+local function trailCenterX(z: number): number
+	return math.sin(z / 28) * 9
+end
+
+local function buildGroundAndBounds(level: Folder)
+	local ground = Instance.new("Folder")
+	ground.Name = "Ground"
+	ground.Parent = level
+
+	makePart(ground, {
+		Name = "JungleFloor",
+		Size = Vector3.new(130, 2, 465),
+		Position = Vector3.new(0, -1, 212.5),
+		Material = Enum.Material.Grass,
+		Color = Color3.fromRGB(46, 66, 38),
+	})
+	-- Dirt trail segments that follow trailCenterX.
+	for z = -10, 205, 10 do
+		makePart(ground, {
+			Name = "Trail",
+			Size = Vector3.new(9, 0.2, 11),
+			CFrame = CFrame.new(trailCenterX(z), 0.05, z) * CFrame.Angles(0, math.atan(math.cos(z / 28) * 9 / 28), 0),
+			Material = Enum.Material.Mud,
+			Color = Color3.fromRGB(78, 62, 46),
+			CanCollide = false,
+		})
+	end
+
+	-- Invisible boundary walls so players cannot walk off the map.
+	local boundary = Color3.new(0, 0, 0)
+	makeWall(
+		ground,
+		Vector3.new(-65, 0, -20),
+		Vector3.new(-65, 0, 445),
+		60,
+		2,
+		Enum.Material.SmoothPlastic,
+		boundary,
+		1
+	)
+	makeWall(ground, Vector3.new(65, 0, -20), Vector3.new(65, 0, 445), 60, 2, Enum.Material.SmoothPlastic, boundary, 1)
+	makeWall(ground, Vector3.new(-65, 0, -20), Vector3.new(65, 0, -20), 60, 2, Enum.Material.SmoothPlastic, boundary, 1)
+	-- The temple is the only way forward: block the gaps beside it.
+	makeWall(
+		ground,
+		Vector3.new(-65, 0, 300),
+		Vector3.new(-27, 0, 300),
+		60,
+		2,
+		Enum.Material.SmoothPlastic,
+		boundary,
+		1
+	)
+	makeWall(ground, Vector3.new(27, 0, 300), Vector3.new(65, 0, 300), 60, 2, Enum.Material.SmoothPlastic, boundary, 1)
+end
+
+local function buildJungle(level: Folder, rng: Random)
+	local jungle = Instance.new("Folder")
+	jungle.Name = "Jungle"
+	jungle.Parent = level
+
+	-- Clearings where trees must not grow (center X, center Z, radius).
+	local clearings = {
+		{ 0, 15, 26 }, -- crash site
+		{ 0, 185, 26 }, -- camp
+	}
+	local function isClear(x: number, z: number): boolean
+		if z < 150 or z > 205 then
+			if math.abs(x - trailCenterX(z)) < 9 then
+				return true
+			end
+		end
+		for _, c in clearings do
+			if (Vector2.new(x, z) - Vector2.new(c[1], c[2])).Magnitude < c[3] then
+				return true
+			end
+		end
+		return false
+	end
+
+	local placed = 0
+	local attempts = 0
+	while placed < 170 and attempts < 2000 do
+		attempts += 1
+		local x = rng:NextNumber(-62, 62)
+		local z = rng:NextNumber(-18, 212)
+		if not isClear(x, z) then
+			makeTree(jungle, Vector3.new(x, 0, z), rng)
+			placed += 1
+		end
+	end
+	-- A thinner tree line framing the ruins courtyard.
+	for z = 215, 295, 12 do
+		makeTree(jungle, Vector3.new(-58 + rng:NextNumber(-2, 2), 0, z), rng)
+		makeTree(jungle, Vector3.new(58 + rng:NextNumber(-2, 2), 0, z), rng)
+	end
+	-- Scattered bushes of tall grass along the trail edges (also hideable).
+	makeGrassPatch(jungle, Vector3.new(trailCenterX(120) + 8, 0, 120), Vector2.new(6, 8), rng)
+	makeGrassPatch(jungle, Vector3.new(trailCenterX(80) - 8, 0, 80), Vector2.new(6, 8), rng)
+end
+
+local function buildCrashSite(level: Folder, rng: Random)
+	local site = Instance.new("Folder")
+	site.Name = "CrashSite"
+	site.Parent = level
+
+	local spawn = Instance.new("SpawnLocation")
+	spawn.Name = "StartSpawn"
+	spawn.Anchored = true
+	spawn.Neutral = true
+	spawn.Duration = 0 -- No force-field: there is nothing to protect against here.
+	spawn.Size = Vector3.new(6, 0.4, 6)
+	spawn.Position = Vector3.new(0, 0.2, 2)
+	spawn.Material = Enum.Material.Slate
+	spawn.Color = Color3.fromRGB(60, 60, 64)
+	spawn.Parent = site
+
+	-- Wrecked helicopter (placeholder shapes).
+	local wreck = Instance.new("Model")
+	wreck.Name = "HelicopterWreck"
+	local hull = Color3.fromRGB(70, 78, 70)
+	makePart(wreck, {
+		Name = "Body",
+		Size = Vector3.new(9, 7, 16),
+		CFrame = CFrame.new(-14, 3, 16) * CFrame.Angles(0, math.rad(25), math.rad(18)),
+		Material = Enum.Material.CorrodedMetal,
+		Color = hull,
+	})
+	makePart(wreck, {
+		Name = "Tail",
+		Size = Vector3.new(2, 2, 14),
+		CFrame = CFrame.new(-19, 2, 30) * CFrame.Angles(math.rad(-8), math.rad(40), 0),
+		Material = Enum.Material.CorrodedMetal,
+		Color = hull,
+	})
+	makePart(wreck, {
+		Name = "Rotor",
+		Size = Vector3.new(26, 0.3, 1.2),
+		CFrame = CFrame.new(-8, 0.4, 8) * CFrame.Angles(0, math.rad(60), math.rad(4)),
+		Material = Enum.Material.Metal,
+		Color = Color3.fromRGB(40, 40, 40),
+	})
+	local fireSource = makePart(wreck, {
+		Name = "FireSource",
+		Size = Vector3.new(2, 1, 2),
+		Position = Vector3.new(-13, 5.5, 18),
+		Transparency = 1,
+		CanCollide = false,
+	})
+	local fire = Instance.new("Fire")
+	fire.Size = 6
+	fire.Heat = 9
+	fire.Parent = fireSource
+	local smoke = Instance.new("Smoke")
+	smoke.RiseVelocity = 6
+	smoke.Size = 6
+	smoke.Opacity = 0.15
+	smoke.Color = Color3.fromRGB(40, 40, 40)
+	smoke.Parent = fireSource
+	addLight(fireSource, Color3.fromRGB(255, 140, 60), 30, 2)
+	wreck.Parent = site
+
+	-- Supply crates.
+	for i, pos in { Vector3.new(8, 1.5, 14), Vector3.new(11, 1.5, 18), Vector3.new(9, 4.5, 15) } do
+		makePart(site, {
+			Name = "Crate" .. i,
+			Size = Vector3.new(3, 3, 3),
+			CFrame = CFrame.new(pos) * CFrame.Angles(0, rng:NextNumber(0, 1), 0),
+			Material = Enum.Material.WoodPlanks,
+			Color = Color3.fromRGB(110, 84, 56),
+		})
+	end
+	makePickup(site, "Battery", "Battery", Vector3.new(6, 1, 19), Color3.fromRGB(120, 200, 255))
+
+	-- A rusted sign pointing the way.
+	local post = makePart(site, {
+		Name = "SignPost",
+		Size = Vector3.new(0.6, 6, 0.6),
+		Position = Vector3.new(6, 3, 34),
+		Material = Enum.Material.Wood,
+		Color = Color3.fromRGB(70, 52, 38),
+	})
+	local board = makePart(site, {
+		Name = "SignBoard",
+		Size = Vector3.new(6, 2, 0.3),
+		Position = post.Position + Vector3.new(0, 2, -0.45),
+		Material = Enum.Material.WoodPlanks,
+		Color = Color3.fromRGB(96, 74, 52),
+	})
+	addSurfaceText(board, Enum.NormalId.Front, "RIFT ZONE - KEEP OUT", Color3.fromRGB(200, 60, 50))
+end
+
+local function buildTrail(level: Folder)
+	local trail = Instance.new("Folder")
+	trail.Name = "Trail"
+	trail.Parent = level
+
+	-- Claw marks on a tree beside the trail: the creature is introduced
+	-- through clues before the player ever sees it.
+	local z = 110
+	local treePos = Vector3.new(trailCenterX(z) - 7, 0, z)
+	makePart(trail, {
+		Name = "MarkedTree",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(26, 5, 5),
+		CFrame = CFrame.new(treePos + Vector3.new(0, 13, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		Material = Enum.Material.Wood,
+		Color = Color3.fromRGB(58, 44, 34),
+	})
+	for i = 1, 4 do
+		makePart(trail, {
+			Name = "ClawMark",
+			Size = Vector3.new(0.3, 4, 0.3),
+			CFrame = CFrame.new(treePos + Vector3.new(2.45, 6 + i * 0.2, -1.5 + i * 0.7))
+				* CFrame.Angles(math.rad(25), 0, 0),
+			Material = Enum.Material.Neon,
+			Color = Color3.fromRGB(120, 30, 40),
+			CanCollide = false,
+		})
+	end
+	makePart(trail, {
+		Name = "BrokenCrate",
+		Size = Vector3.new(3, 2, 3),
+		CFrame = CFrame.new(treePos + Vector3.new(4, 1, 3)) * CFrame.Angles(0, 0.4, 0.15),
+		Material = Enum.Material.WoodPlanks,
+		Color = Color3.fromRGB(96, 74, 52),
+	})
+	makeNote(trail, "Scrawl", "Scratched message", treePos + Vector3.new(4, 2.1, 3))
+	makeStoryTrigger(trail, "ClawMarks", CFrame.new(trailCenterX(z), 4, z), Vector3.new(24, 8, 14))
+end
+
+local function buildCamp(level: Folder, rng: Random)
+	local camp = Instance.new("Folder")
+	camp.Name = "Camp"
+	camp.Parent = level
+
+	local tentColor = Color3.fromRGB(96, 104, 70)
+	for _, t in { { -12, 178, 30 }, { 12, 192, -40 }, { -9, 198, 160 } } do
+		makePart(camp, {
+			Name = "Tent",
+			Size = Vector3.new(8, 5, 8),
+			CFrame = CFrame.new(t[1], 2.5, t[2]) * CFrame.Angles(0, math.rad(t[3]), 0),
+			Shape = Enum.PartType.Block,
+			Material = Enum.Material.Fabric,
+			Color = tentColor,
+		})
+		makePart(camp, {
+			Name = "TentRoof",
+			Size = Vector3.new(8.4, 4, 8.4),
+			CFrame = CFrame.new(t[1], 6, t[2]) * CFrame.Angles(0, math.rad(t[3] + 45), 0) * CFrame.Angles(0, 0, 0),
+			Material = Enum.Material.Fabric,
+			Color = tentColor:Lerp(Color3.new(0, 0, 0), 0.2),
+			Shape = Enum.PartType.Block,
+		})
+	end
+
+	-- Campfire (cold ashes with a dim ember glow).
+	local fire = makePart(camp, {
+		Name = "Campfire",
+		Size = Vector3.new(4, 0.5, 4),
+		Position = Vector3.new(2, 0.25, 186),
+		Material = Enum.Material.Cobblestone,
+		Color = Color3.fromRGB(40, 36, 34),
+	})
+	addLight(fire, Color3.fromRGB(255, 90, 40), 14, 1.2)
+
+	local tableTop = makePart(camp, {
+		Name = "FieldTable",
+		Size = Vector3.new(6, 0.4, 3),
+		Position = Vector3.new(-4, 3, 194),
+		Material = Enum.Material.WoodPlanks,
+		Color = Color3.fromRGB(110, 84, 56),
+	})
+	for _, off in
+		{
+			Vector3.new(-2.6, -1.5, -1.2),
+			Vector3.new(2.6, -1.5, -1.2),
+			Vector3.new(-2.6, -1.5, 1.2),
+			Vector3.new(2.6, -1.5, 1.2),
+		}
+	do
+		makePart(camp, {
+			Name = "TableLeg",
+			Size = Vector3.new(0.4, 2.8, 0.4),
+			Position = tableTop.Position + off,
+			Material = Enum.Material.Wood,
+			Color = Color3.fromRGB(70, 52, 38),
+		})
+	end
+	local lantern = makePart(camp, {
+		Name = "Lantern",
+		Size = Vector3.new(0.8, 1.2, 0.8),
+		Position = tableTop.Position + Vector3.new(2, 0.8, 0),
+		Material = Enum.Material.Neon,
+		Color = Color3.fromRGB(255, 200, 120),
+	})
+	addLight(lantern, Color3.fromRGB(255, 200, 120), 16, 1.2)
+
+	makeNote(camp, "Journal", "Rourke's journal", tableTop.Position + Vector3.new(-1, 0.25, 0))
+	makePickup(camp, "Bandage", "Bandage", Vector3.new(12, 1, 184), Color3.fromRGB(230, 225, 210))
+	makePickup(camp, "Battery", "Battery", Vector3.new(-14, 1, 186), Color3.fromRGB(120, 200, 255))
+	makeCheckpoint(camp, "Camp", 1, Vector3.new(6, 0, 174))
+	makeStoryTrigger(camp, "Camp", CFrame.new(0, 4, 172), Vector3.new(40, 8, 10))
+
+	-- Scattered gear.
+	for _ = 1, 6 do
+		makePart(camp, {
+			Name = "Debris",
+			Size = Vector3.new(rng:NextNumber(1, 2.5), rng:NextNumber(0.5, 1.5), rng:NextNumber(1, 2.5)),
+			CFrame = CFrame.new(rng:NextNumber(-18, 18), 0.5, rng:NextNumber(170, 205))
+				* CFrame.Angles(0, rng:NextNumber(0, 3), 0),
+			Material = Enum.Material.Fabric,
+			Color = Color3.fromRGB(80, 70, 60),
+		})
+	end
+end
+
+local function buildRuins(level: Folder, rng: Random)
+	local ruins = Instance.new("Folder")
+	ruins.Name = "Ruins"
+	ruins.Parent = level
+
+	local stone = Color3.fromRGB(96, 98, 92)
+	makePart(ruins, {
+		Name = "CourtyardFloor",
+		Size = Vector3.new(90, 0.4, 85),
+		Position = Vector3.new(0, 0.2, 257),
+		Material = Enum.Material.Cobblestone,
+		Color = Color3.fromRGB(80, 82, 76),
+	})
+
+	-- Broken pillars (good cover for breaking line of sight).
+	local pillarSpots = {
+		Vector3.new(-30, 0, 228),
+		Vector3.new(30, 0, 228),
+		Vector3.new(-30, 0, 255),
+		Vector3.new(30, 0, 255),
+		Vector3.new(-30, 0, 282),
+		Vector3.new(30, 0, 282),
+		Vector3.new(-12, 0, 240),
+		Vector3.new(14, 0, 268),
+	}
+	for _, pos in pillarSpots do
+		local h = rng:NextNumber(6, 16)
+		makePart(ruins, {
+			Name = "Pillar",
+			Size = Vector3.new(4, h, 4),
+			Position = pos + Vector3.new(0, h / 2, 0),
+			Material = Enum.Material.Slate,
+			Color = stone,
+		})
+	end
+	-- Low crumbling walls.
+	makeWall(ruins, Vector3.new(-22, 0, 246), Vector3.new(-8, 0, 250), 4, 2, Enum.Material.Slate, stone)
+	makeWall(ruins, Vector3.new(6, 0, 236), Vector3.new(20, 0, 240), 5, 2, Enum.Material.Slate, stone)
+	makeWall(ruins, Vector3.new(-6, 0, 274), Vector3.new(8, 0, 276), 3.5, 2, Enum.Material.Slate, stone)
+	for _ = 1, 10 do
+		local s = rng:NextNumber(2, 5)
+		makeRock(
+			ruins,
+			Vector3.new(rng:NextNumber(-40, 40), s / 3, rng:NextNumber(220, 295)),
+			Vector3.new(s, s * 0.7, s),
+			rng
+		)
+	end
+
+	-- Tall grass patches to hide in.
+	makeGrassPatch(ruins, Vector3.new(-20, 0.4, 232), Vector2.new(10, 10), rng)
+	makeGrassPatch(ruins, Vector3.new(22, 0.4, 250), Vector2.new(10, 12), rng)
+	makeGrassPatch(ruins, Vector3.new(-18, 0.4, 266), Vector2.new(12, 10), rng)
+	makeGrassPatch(ruins, Vector3.new(4, 0.4, 286), Vector2.new(14, 8), rng)
+	makeGrassPatch(ruins, Vector3.new(-38, 0.4, 290), Vector2.new(8, 8), rng)
+
+	makePickup(ruins, "Bandage", "Bandage", Vector3.new(-38, 1, 222), Color3.fromRGB(230, 225, 210))
+
+	-- Stalker patrol route (invisible markers, visited in order).
+	local patrol = {
+		Vector3.new(0, 3, 230),
+		Vector3.new(-25, 3, 240),
+		Vector3.new(-25, 3, 275),
+		Vector3.new(0, 3, 292),
+		Vector3.new(25, 3, 275),
+		Vector3.new(25, 3, 240),
+	}
+	for i, pos in patrol do
+		local marker = makeZone(ruins, "PatrolPoint" .. i, CFrame.new(pos), Vector3.new(1, 1, 1), "StalkerPatrol")
+		marker:SetAttribute("Order", i)
+	end
+	makeZone(ruins, "StalkerSpawn", CFrame.new(0, 4, 292), Vector3.new(1, 1, 1), "StalkerSpawn")
+	makeStoryTrigger(ruins, "Ruins", CFrame.new(0, 4, 214), Vector3.new(100, 8, 8))
+end
+
+local function buildTemple(level: Folder)
+	local temple = Instance.new("Folder")
+	temple.Name = "Temple"
+	temple.Parent = level
+
+	local stone = Color3.fromRGB(84, 82, 76)
+	local mat = Enum.Material.Slate
+	local height = 22
+
+	makePart(temple, {
+		Name = "TempleFloor",
+		Size = Vector3.new(50, 0.4, 60),
+		Position = Vector3.new(0, 0.2, 330),
+		Material = Enum.Material.Cobblestone,
+		Color = Color3.fromRGB(64, 62, 58),
+	})
+	makePart(temple, {
+		Name = "Roof",
+		Size = Vector3.new(54, 3, 64),
+		Position = Vector3.new(0, height + 1.5, 330),
+		Material = mat,
+		Color = stone,
+	})
+	-- Side walls.
+	makePart(temple, {
+		Name = "WallWest",
+		Size = Vector3.new(3, height, 60),
+		Position = Vector3.new(-26.5, height / 2, 330),
+		Material = mat,
+		Color = stone,
+	})
+	makePart(temple, {
+		Name = "WallEast",
+		Size = Vector3.new(3, height, 60),
+		Position = Vector3.new(26.5, height / 2, 330),
+		Material = mat,
+		Color = stone,
+	})
+	-- Front wall with an 8-wide doorway at X = 0.
+	makePart(temple, {
+		Name = "FrontLeft",
+		Size = Vector3.new(24, height, 3),
+		Position = Vector3.new(-16, height / 2, 300),
+		Material = mat,
+		Color = stone,
+	})
+	makePart(temple, {
+		Name = "FrontRight",
+		Size = Vector3.new(24, height, 3),
+		Position = Vector3.new(16, height / 2, 300),
+		Material = mat,
+		Color = stone,
+	})
+	makePart(temple, {
+		Name = "FrontLintel",
+		Size = Vector3.new(8, height - 12, 3),
+		Position = Vector3.new(0, 12 + (height - 12) / 2, 300),
+		Material = mat,
+		Color = stone,
+	})
+	-- Back wall with a 10-wide sealed door at X = 0.
+	makePart(temple, {
+		Name = "BackLeft",
+		Size = Vector3.new(23, height, 3),
+		Position = Vector3.new(-16.5, height / 2, 360),
+		Material = mat,
+		Color = stone,
+	})
+	makePart(temple, {
+		Name = "BackRight",
+		Size = Vector3.new(23, height, 3),
+		Position = Vector3.new(16.5, height / 2, 360),
+		Material = mat,
+		Color = stone,
+	})
+	makePart(temple, {
+		Name = "BackLintel",
+		Size = Vector3.new(10, height - 14, 3),
+		Position = Vector3.new(0, 14 + (height - 14) / 2, 360),
+		Material = mat,
+		Color = stone,
+	})
+
+	local gate = makePart(temple, {
+		Name = "SealedDoor",
+		Size = Vector3.new(10, 14, 2),
+		Position = Vector3.new(0, 7, 359.5),
+		Material = Enum.Material.Basalt,
+		Color = Color3.fromRGB(50, 46, 60),
+	})
+	gate:SetAttribute("ClosedPosition", gate.Position)
+	CollectionService:AddTag(gate, "PuzzleGate")
+	addSurfaceText(gate, Enum.NormalId.Front, "◆", Color3.fromRGB(150, 90, 220))
+
+	-- The mural above the door: shows EYE ? SUN (the journal fills the gap).
+	local mural = makePart(temple, {
+		Name = "Mural",
+		Size = Vector3.new(18, 5, 0.4),
+		Position = Vector3.new(0, 17, 358.3),
+		Material = Enum.Material.Slate,
+		Color = Color3.fromRGB(110, 104, 92),
+	})
+	addSurfaceText(mural, Enum.NormalId.Front, "EYE     ?     SUN", Color3.fromRGB(230, 200, 140))
+	local muralReader = makePart(temple, {
+		Name = "MuralReader",
+		Size = Vector3.new(4, 4, 1),
+		Position = Vector3.new(-9, 3, 357),
+		Transparency = 1,
+		CanCollide = false,
+	})
+	muralReader:SetAttribute("NoteId", "Mural")
+	makePrompt(muralReader, "Examine", "Temple mural")
+	CollectionService:AddTag(muralReader, "Note")
+
+	-- Three dials in front of the door.
+	for i, x in { -8, 0, 8 } do
+		local dial = makePart(temple, {
+			Name = "Dial" .. i,
+			Size = Vector3.new(4, 6, 4),
+			Position = Vector3.new(x, 3, 346),
+			Material = Enum.Material.Slate,
+			Color = Color3.fromRGB(100, 96, 88),
+		})
+		dial:SetAttribute("DialIndex", i)
+		local face = makePart(temple, {
+			Name = "DialFace" .. i,
+			Size = Vector3.new(3.4, 2.4, 0.2),
+			Position = Vector3.new(x, 4.4, 343.9),
+			Material = Enum.Material.Slate,
+			Color = Color3.fromRGB(40, 38, 36),
+			CanCollide = false,
+		})
+		local label = addSurfaceText(face, Enum.NormalId.Front, "?", Color3.new(1, 1, 1))
+		label.Name = "SymbolLabel"
+		face:SetAttribute("DialIndex", i)
+		CollectionService:AddTag(face, "PuzzleDialFace")
+		addLight(face, Color3.fromRGB(200, 170, 120), 6, 0.5)
+		makePrompt(dial, "Turn", "Stone dial " .. i)
+		CollectionService:AddTag(dial, "PuzzleDial")
+	end
+
+	-- Torches flanking the door give just enough light to read the dials.
+	for _, x in { -11, 11 } do
+		local torch = makePart(temple, {
+			Name = "Torch",
+			Size = Vector3.new(0.6, 1.4, 0.6),
+			Position = Vector3.new(x, 8, 357.8),
+			Material = Enum.Material.Neon,
+			Color = Color3.fromRGB(255, 150, 70),
+			CanCollide = false,
+		})
+		addLight(torch, Color3.fromRGB(255, 140, 60), 18, 1.4)
+		local fire = Instance.new("Fire")
+		fire.Size = 2
+		fire.Heat = 4
+		fire.Parent = torch
+	end
+
+	-- Side altar with optional evidence (the Rift Shard) and a torn page.
+	local altar = makePart(temple, {
+		Name = "Altar",
+		Size = Vector3.new(5, 3, 3),
+		Position = Vector3.new(-20, 1.5, 330),
+		Material = Enum.Material.Slate,
+		Color = Color3.fromRGB(70, 66, 80),
+	})
+	makePickup(
+		temple,
+		"RiftShard",
+		"Rift Shard",
+		altar.Position + Vector3.new(0.8, 2.2, 0),
+		Color3.fromRGB(190, 110, 255)
+	)
+	makeNote(temple, "Recording", "Torn page", altar.Position + Vector3.new(-1.2, 1.6, 0))
+	makePickup(temple, "Battery", "Battery", Vector3.new(20, 1, 318), Color3.fromRGB(120, 200, 255))
+
+	makeStoryTrigger(temple, "Temple", CFrame.new(0, 4, 308), Vector3.new(46, 8, 8))
+	-- Gate checkpoint is only unlocked once the puzzle is solved (see PuzzleService).
+	makeCheckpoint(temple, "Temple", 2, Vector3.new(0, 0.4, 306))
+	local escapeCheckpoint =
+		makeZone(temple, "EscapeCheckpointSpawn", CFrame.new(0, 3.5, 352), Vector3.new(1, 1, 1), "EscapeSpawn")
+	escapeCheckpoint:SetAttribute("SpawnPosition", Vector3.new(0, 3.5, 352))
+	makeZone(temple, "StalkerHuntSpawn", CFrame.new(0, 4, 296), Vector3.new(1, 1, 1), "StalkerHuntSpawn")
+end
+
+local function buildEscape(level: Folder, rng: Random)
+	local escape = Instance.new("Folder")
+	escape.Name = "Escape"
+	escape.Parent = level
+
+	local rock = Color3.fromRGB(62, 58, 56)
+	local mat = Enum.Material.Rock
+	-- Tunnel from Z 361 to Z 430, 14 wide, 16 tall.
+	makePart(escape, {
+		Name = "TunnelFloor",
+		Size = Vector3.new(16, 1, 70),
+		Position = Vector3.new(0, -0.3, 396),
+		Material = Enum.Material.Ground,
+		Color = Color3.fromRGB(60, 52, 44),
+	})
+	makePart(escape, {
+		Name = "TunnelWestWall",
+		Size = Vector3.new(4, 16, 70),
+		Position = Vector3.new(-9, 8, 396),
+		Material = mat,
+		Color = rock,
+	})
+	makePart(escape, {
+		Name = "TunnelEastWall",
+		Size = Vector3.new(4, 16, 70),
+		Position = Vector3.new(9, 8, 396),
+		Material = mat,
+		Color = rock,
+	})
+	makePart(escape, {
+		Name = "TunnelRoof",
+		Size = Vector3.new(22, 4, 70),
+		Position = Vector3.new(0, 18, 396),
+		Material = mat,
+		Color = rock,
+	})
+	-- A few support beams and fallen stones to weave around.
+	for z = 372, 424, 13 do
+		makePart(escape, {
+			Name = "Beam",
+			Size = Vector3.new(14, 1, 1),
+			Position = Vector3.new(0, 14, z),
+			Material = Enum.Material.Wood,
+			Color = Color3.fromRGB(70, 52, 38),
+		})
+	end
+	makeRock(escape, Vector3.new(-4, 1, 385), Vector3.new(4, 3, 5), rng)
+	makeRock(escape, Vector3.new(4, 1, 405), Vector3.new(4, 3, 5), rng)
+	makeRock(escape, Vector3.new(-3, 1, 420), Vector3.new(3, 2.5, 4), rng)
+	-- Emergency glow strips so the route stays readable at full sprint.
+	for z = 366, 428, 8 do
+		local strip = makePart(escape, {
+			Name = "GuideLight",
+			Size = Vector3.new(0.4, 0.4, 2),
+			Position = Vector3.new(-6.8, 0.4, z),
+			Material = Enum.Material.Neon,
+			Color = Color3.fromRGB(255, 120, 60),
+			CanCollide = false,
+		})
+		addLight(strip, Color3.fromRGB(255, 110, 50), 10, 0.8)
+	end
+
+	makeZone(escape, "EscapeZone", CFrame.new(0, 8, 400), Vector3.new(18, 16, 80), "EscapeZone")
+
+	-- Cliff area beyond the tunnel.
+	local cliffColor = Color3.fromRGB(78, 74, 70)
+	makePart(escape, {
+		Name = "CliffBaseFloor",
+		Size = Vector3.new(30, 1, 16),
+		Position = Vector3.new(0, -0.3, 438),
+		Material = Enum.Material.Ground,
+		Color = Color3.fromRGB(60, 52, 44),
+	})
+	makePart(escape, {
+		Name = "CliffSideWest",
+		Size = Vector3.new(4, 40, 38),
+		Position = Vector3.new(-15, 20, 442),
+		Material = mat,
+		Color = cliffColor,
+	})
+	makePart(escape, {
+		Name = "CliffSideEast",
+		Size = Vector3.new(4, 40, 38),
+		Position = Vector3.new(15, 20, 442),
+		Material = mat,
+		Color = cliffColor,
+	})
+	makePart(escape, {
+		Name = "Cliff",
+		Size = Vector3.new(26, 24, 15),
+		Position = Vector3.new(0, 12, 453.5),
+		Material = mat,
+		Color = cliffColor,
+	})
+	-- Seal the slots between the tunnel mouth and the cliff sides.
+	makeWall(
+		escape,
+		Vector3.new(-17, 0, 430),
+		Vector3.new(-9, 0, 430),
+		30,
+		2,
+		Enum.Material.SmoothPlastic,
+		Color3.new(),
+		1
+	)
+	makeWall(
+		escape,
+		Vector3.new(9, 0, 430),
+		Vector3.new(17, 0, 430),
+		30,
+		2,
+		Enum.Material.SmoothPlastic,
+		Color3.new(),
+		1
+	)
+	-- Climbable truss ladder up the cliff face (Roblox characters climb trusses natively).
+	local truss = Instance.new("TrussPart")
+	truss.Name = "ClimbTruss"
+	truss.Anchored = true
+	truss.Size = Vector3.new(2, 26, 2)
+	truss.Position = Vector3.new(0, 13, 445)
+	truss.Material = Enum.Material.Wood
+	truss.Color = Color3.fromRGB(96, 74, 52)
+	truss.Parent = escape
+	addLight(truss, Color3.fromRGB(255, 200, 140), 10, 0.6)
+
+	makeStoryTrigger(escape, "Bridge", CFrame.new(0, 28, 456), Vector3.new(22, 8, 6))
+
+	-- Rope bridge over the chasm (Z 461 to 510) at the cliff top height.
+	local deckY = 24
+	local plankCount = 0
+	for z = 462, 509, 2 do
+		plankCount += 1
+		local plank = makePart(escape, {
+			Name = "Plank" .. plankCount,
+			Size = Vector3.new(7, 0.6, 1.8),
+			CFrame = CFrame.new(0, deckY - 0.3, z) * CFrame.Angles(0, 0, math.rad(rng:NextNumber(-2, 2))),
+			Material = Enum.Material.WoodPlanks,
+			Color = Color3.fromRGB(110, 84, 56),
+		})
+		plank:SetAttribute("HomeCFrame", plank.CFrame)
+		CollectionService:AddTag(plank, "BridgePlank")
+	end
+	for _, x in { -3.6, 3.6 } do
+		makePart(escape, {
+			Name = "Rope",
+			Size = Vector3.new(0.3, 0.3, 50),
+			Position = Vector3.new(x, deckY + 2.5, 485.5),
+			Material = Enum.Material.Fabric,
+			Color = Color3.fromRGB(150, 130, 90),
+		})
+		-- Invisible rails stop accidental side falls (fairness over realism).
+		makePart(escape, {
+			Name = "SafetyRail",
+			Size = Vector3.new(0.5, 6, 50),
+			Position = Vector3.new(x * 1.05, deckY + 3, 485.5),
+			Transparency = 1,
+		})
+	end
+
+	-- Far landing with the rescue flare.
+	makePart(escape, {
+		Name = "FarLedge",
+		Size = Vector3.new(30, 24, 37),
+		Position = Vector3.new(0, 12, 527.5),
+		Material = mat,
+		Color = cliffColor,
+	})
+	local flare = makePart(escape, {
+		Name = "RescueFlare",
+		Size = Vector3.new(0.6, 3, 0.6),
+		Position = Vector3.new(0, deckY + 1.5, 532),
+		Material = Enum.Material.Neon,
+		Color = Color3.fromRGB(255, 60, 60),
+		CanCollide = false,
+	})
+	addLight(flare, Color3.fromRGB(255, 60, 60), 40, 3)
+	local sparks = Instance.new("Fire")
+	sparks.Color = Color3.fromRGB(255, 80, 60)
+	sparks.SecondaryColor = Color3.fromRGB(255, 200, 120)
+	sparks.Size = 3
+	sparks.Parent = flare
+	makeZone(escape, "EndZone", CFrame.new(0, deckY + 4, 528), Vector3.new(26, 8, 24), "EndZone")
+
+	-- Invisible walls around the cliff top and far ledge.
+	local clear = Color3.new(0, 0, 0)
+	makeWall(
+		escape,
+		Vector3.new(-14, deckY, 446),
+		Vector3.new(-14, deckY, 461),
+		20,
+		1,
+		Enum.Material.SmoothPlastic,
+		clear,
+		1
+	)
+	makeWall(
+		escape,
+		Vector3.new(14, deckY, 446),
+		Vector3.new(14, deckY, 461),
+		20,
+		1,
+		Enum.Material.SmoothPlastic,
+		clear,
+		1
+	)
+	makeWall(
+		escape,
+		Vector3.new(-15, deckY, 510),
+		Vector3.new(-15, deckY, 546),
+		20,
+		1,
+		Enum.Material.SmoothPlastic,
+		clear,
+		1
+	)
+	makeWall(
+		escape,
+		Vector3.new(15, deckY, 510),
+		Vector3.new(15, deckY, 546),
+		20,
+		1,
+		Enum.Material.SmoothPlastic,
+		clear,
+		1
+	)
+	makeWall(
+		escape,
+		Vector3.new(-15, deckY, 546),
+		Vector3.new(15, deckY, 546),
+		20,
+		1,
+		Enum.Material.SmoothPlastic,
+		clear,
+		1
+	)
+
+	-- Dark mist far below the bridge (falling in is fatal; see KillHeight).
+	makePart(escape, {
+		Name = "ChasmMist",
+		Size = Vector3.new(80, 1, 60),
+		Position = Vector3.new(0, -30, 486),
+		Material = Enum.Material.SmoothPlastic,
+		Color = Color3.fromRGB(10, 6, 14),
+		Transparency = 0.2,
+		CanCollide = false,
+		CanQuery = false,
+	})
+end
+
+------------------------------------------------------------------------------
+-- Lighting
+------------------------------------------------------------------------------
+
+function LevelBuilder.SetupLighting()
+	Lighting.ClockTime = 0.5
+	Lighting.Brightness = 0.6
+	Lighting.Ambient = Color3.fromRGB(18, 20, 26)
+	Lighting.OutdoorAmbient = Color3.fromRGB(40, 46, 56)
+	Lighting.EnvironmentDiffuseScale = 0.2
+	Lighting.EnvironmentSpecularScale = 0.2
+	Lighting.GlobalShadows = true
+
+	if not Lighting:FindFirstChildOfClass("Atmosphere") then
+		local atmosphere = Instance.new("Atmosphere")
+		atmosphere.Density = 0.42
+		atmosphere.Offset = 0.1
+		atmosphere.Color = Color3.fromRGB(70, 84, 80)
+		atmosphere.Decay = Color3.fromRGB(30, 36, 40)
+		atmosphere.Glare = 0
+		atmosphere.Haze = 2
+		atmosphere.Parent = Lighting
+	end
+	if not Lighting:FindFirstChildOfClass("ColorCorrectionEffect") then
+		local grade = Instance.new("ColorCorrectionEffect")
+		grade.Saturation = -0.25
+		grade.Contrast = 0.1
+		grade.TintColor = Color3.fromRGB(220, 235, 230)
+		grade.Parent = Lighting
+	end
+end
+
+------------------------------------------------------------------------------
+-- Public API
+------------------------------------------------------------------------------
+
+-- Builds (or rebuilds) the level. The fixed random seed means every build
+-- produces the same jungle layout.
+function LevelBuilder.Build(): Folder
+	if currentLevel then
+		currentLevel:Destroy()
+		currentLevel = nil
+	end
+	local rng = Random.new(1337)
+	local level = Instance.new("Folder")
+	level.Name = LEVEL_NAME
+
+	buildGroundAndBounds(level)
+	buildJungle(level, rng)
+	buildCrashSite(level, rng)
+	buildTrail(level)
+	buildCamp(level, rng)
+	buildRuins(level, rng)
+	buildTemple(level)
+	buildEscape(level, rng)
+
+	-- Parent last: one replication burst instead of thousands of small ones.
+	level.Parent = workspace
+	currentLevel = level
+	return level
+end
+
+-- Spawns a loose item pickup in the current level (used for dropped items).
+function LevelBuilder.SpawnPickup(itemId: string, displayName: string, position: Vector3, color: Color3)
+	local level = currentLevel
+	if not level then
+		return
+	end
+	local folder = level:FindFirstChild("Dropped")
+	if not folder then
+		folder = Instance.new("Folder")
+		folder.Name = "Dropped"
+		folder.Parent = level
+	end
+	makePickup(folder :: Instance, itemId, displayName, position, color)
+end
+
+function LevelBuilder.GetStartPosition(): Vector3
+	return Vector3.new(0, 3.5, 2)
+end
+
+return LevelBuilder
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="30">
+          <Properties>
+            <string name="Name">PuzzleService</string>
+            <string name="Source"><![CDATA[--!strict
+-- PuzzleService: the three stone dials in the temple.
+--
+-- Each dial cycles through four symbols. Setting them, left to right, to
+-- EYE, MOON, SUN opens the sealed door. The clue is split between the mural
+-- above the door (EYE ? SUN) and Rourke's journal in the camp.
+--
+-- The puzzle state lives on the server and is shared by all players. Once
+-- solved it stays solved (dying cannot re-lock it), so it can never soft-lock.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CollectionService = game:GetService("CollectionService")
+local TweenService = game:GetService("TweenService")
+
+local Zones = require(script.Parent.Parent.Util.Zones)
+local PlayerData = require(script.Parent.Parent.Util.PlayerData)
+local StoryService = require(script.Parent.StoryService)
+local CheckpointService = require(script.Parent.CheckpointService)
+
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+
+local PuzzleService = {}
+
+local SYMBOLS = {
+	{ Name = "SUN", Color = Color3.fromRGB(255, 200, 80) },
+	{ Name = "MOON", Color = Color3.fromRGB(170, 200, 255) },
+	{ Name = "EYE", Color = Color3.fromRGB(255, 90, 90) },
+	{ Name = "SPIRAL", Color = Color3.fromRGB(120, 230, 150) },
+}
+local SOLUTION = { 3, 2, 1 } -- EYE, MOON, SUN
+local START_STATE = { 1, 4, 2 } -- SUN, SPIRAL, MOON (deliberately wrong)
+
+local dialState: { number } = table.clone(START_STATE)
+local solved = false
+local lastTurn: { [number]: number } = {}
+
+-- Called by Main when the puzzle is solved (starts the escape).
+PuzzleService.OnSolved = nil :: (() -> ())?
+
+local function refreshFaces()
+	for _, face in CollectionService:GetTagged("PuzzleDialFace") do
+		local index = face:GetAttribute("DialIndex")
+		local label = face:FindFirstChild("SymbolLabel", true)
+		if type(index) == "number" and label and label:IsA("TextLabel") then
+			local symbol = SYMBOLS[dialState[index]]
+			label.Text = symbol.Name
+			label.TextColor3 = if solved then Color3.fromRGB(190, 110, 255) else symbol.Color
+		end
+	end
+end
+
+local function openGate()
+	for _, gate in CollectionService:GetTagged("PuzzleGate") do
+		if gate:IsA("BasePart") then
+			local closed = gate:GetAttribute("ClosedPosition")
+			if typeof(closed) == "Vector3" then
+				local tween = TweenService:Create(
+					gate,
+					TweenInfo.new(3, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+					{ Position = closed - Vector3.new(0, 14.5, 0) }
+				)
+				tween:Play()
+			end
+		end
+	end
+end
+
+local function isSolved(): boolean
+	for i, value in SOLUTION do
+		if dialState[i] ~= value then
+			return false
+		end
+	end
+	return true
+end
+
+local function solve()
+	solved = true
+	refreshFaces()
+	for _, dial in CollectionService:GetTagged("PuzzleDial") do
+		local prompt = dial:FindFirstChildOfClass("ProximityPrompt")
+		if prompt then
+			prompt.Enabled = false
+		end
+	end
+	openGate()
+	Remotes.CameraShake:FireAllClients(2.5, 0.6)
+	StoryService.SetPhase("Escape")
+	StoryService.SetObjective("Escape")
+	StoryService.PlayDialogue("Solved")
+
+	-- Everyone gets a checkpoint right by the door, so dying during the
+	-- escape never means redoing the ruins.
+	local marker = Zones.FirstTagged("EscapeSpawn")
+	local spawnPos = marker and marker:GetAttribute("SpawnPosition")
+	if typeof(spawnPos) == "Vector3" then
+		for _, player in Players:GetPlayers() do
+			CheckpointService.Set(player, 3, spawnPos, "Temple Door")
+		end
+	end
+	if PuzzleService.OnSolved then
+		PuzzleService.OnSolved()
+	end
+end
+
+local function bindDial(inst: Instance)
+	if not inst:IsA("BasePart") then
+		return
+	end
+	local dial = inst
+	local prompt = dial:FindFirstChildOfClass("ProximityPrompt")
+	local index = dial:GetAttribute("DialIndex")
+	if not prompt or type(index) ~= "number" then
+		return
+	end
+	prompt.Enabled = not solved
+	prompt.Triggered:Connect(function(player)
+		if solved then
+			return
+		end
+		local _, _, root = PlayerData.GetAliveCharacter(player)
+		if not root or (root.Position - dial.Position).Magnitude > 14 then
+			return
+		end
+		-- Small per-dial debounce so simultaneous presses do not double-turn.
+		local now = os.clock()
+		if lastTurn[index] and now - lastTurn[index] < 0.3 then
+			return
+		end
+		lastTurn[index] = now
+		dialState[index] = dialState[index] % #SYMBOLS + 1
+		refreshFaces()
+		if isSolved() then
+			solve()
+		end
+	end)
+	refreshFaces()
+end
+
+function PuzzleService.IsSolved(): boolean
+	return solved
+end
+
+function PuzzleService.Reset()
+	dialState = table.clone(START_STATE)
+	solved = false
+	table.clear(lastTurn)
+	for _, dial in CollectionService:GetTagged("PuzzleDial") do
+		local prompt = dial:FindFirstChildOfClass("ProximityPrompt")
+		if prompt then
+			prompt.Enabled = true
+		end
+	end
+	refreshFaces()
+end
+
+function PuzzleService.Init()
+	Zones.BindTag("PuzzleDial", bindDial)
+	Zones.BindTag("PuzzleDialFace", function()
+		refreshFaces()
+	end)
+end
+
+return PuzzleService
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="31">
+          <Properties>
+            <string name="Name">StalkerService</string>
+            <string name="Source"><![CDATA[--!strict
+-- StalkerService: "the Hollow", the demo's one enemy (a Stalker-type hunter).
+--
+-- It runs a simple state machine on the server, a few times per second:
+--
+--   Patrol      walks a loop of patrol points in the ruins
+--   Investigate heard a noise: walks to where it came from and looks around
+--   Chase       sees a player: runs at them
+--   Attack      close enough: winds up (a visible tell) and then swings
+--   Search      lost sight: checks the last known position, then wanders
+--   Return      gives up and walks back to its patrol route
+--   Hunt        scripted escape sequence: pursues the nearest escaping player
+--   Idle        waits (before being released during the escape)
+--
+-- Fair-horror rules: it only knows where you are if it SEES you (in front of
+-- it, within range, with nothing blocking the view) or HEARS you (sprinting
+-- is loud, walking is quiet, crouching is nearly silent). Crouching inside
+-- tall grass hides you unless it is right next to you. A lit flashlight lets
+-- it see you from further away.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local PathfindingService = game:GetService("PathfindingService")
+local CollectionService = game:GetService("CollectionService")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+local Zones = require(script.Parent.Parent.Util.Zones)
+local PlayerData = require(script.Parent.Parent.Util.PlayerData)
+
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local C = Config.Stalker
+
+local StalkerService = {}
+
+type State = "Patrol" | "Investigate" | "Chase" | "Attack" | "Search" | "Return" | "Hunt" | "Idle"
+
+local model: Model? = nil
+local humanoid: Humanoid? = nil
+local root: BasePart? = nil
+local eyes: { BasePart } = {}
+
+local state: State = "Patrol"
+local stateStarted = 0
+local mode: "Explore" | "Hunt" = "Explore"
+local huntReleaseTime = 0
+
+local target: Player? = nil
+local lastSeenTime = 0
+local lastKnownPosition: Vector3? = nil
+local investigatePosition: Vector3? = nil
+local searchPoint: Vector3? = nil
+local lastAttackTime = 0
+local attackStarted = 0
+
+local patrolPoints: { Vector3 } = {}
+local patrolIndex = 1
+
+-- Pathfinding bookkeeping.
+local path = PathfindingService:CreatePath({
+	AgentRadius = 2.5,
+	AgentHeight = 9,
+	AgentCanJump = false,
+	AgentCanClimb = false,
+	WaypointSpacing = 6,
+})
+local waypoints: { PathWaypoint } = {}
+local waypointIndex = 1
+local pathGoal: Vector3? = nil
+local lastPathTime = 0
+local pathFailures = 0
+local lastProgressPosition = Vector3.zero
+local lastProgressTime = 0
+
+local rng = Random.new()
+
+------------------------------------------------------------------------------
+-- Model
+------------------------------------------------------------------------------
+
+-- Builds a tall, thin placeholder creature from parts. Replace with a real
+-- model later (keep a Humanoid and a HumanoidRootPart).
+local function buildModel(position: Vector3): Model
+	local m = Instance.new("Model")
+	m.Name = "Hollow"
+	local body = Color3.fromRGB(22, 20, 24)
+
+	local hrp = Instance.new("Part")
+	hrp.Name = "HumanoidRootPart"
+	hrp.Size = Vector3.new(2, 2, 1)
+	hrp.Transparency = 1
+	hrp.CanCollide = false
+	hrp.CFrame = CFrame.new(position)
+	hrp.Parent = m
+
+	local function limb(name: string, size: Vector3, offset: CFrame, color: Color3?, material: Enum.Material?): Part
+		local p = Instance.new("Part")
+		p.Name = name
+		p.Size = size
+		p.CFrame = hrp.CFrame * offset
+		p.Color = color or body
+		p.Material = material or Enum.Material.SmoothPlastic
+		p.CanCollide = false
+		p.CanQuery = true
+		p.Massless = true
+		p.TopSurface = Enum.SurfaceType.Smooth
+		p.BottomSurface = Enum.SurfaceType.Smooth
+		p.Parent = m
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = hrp
+		weld.Part1 = p
+		weld.Parent = p
+		return p
+	end
+
+	local torso = limb("Torso", Vector3.new(2.2, 3.4, 1.2), CFrame.new(0, 1.7, 0) * CFrame.Angles(math.rad(-10), 0, 0))
+	-- The torso is the one part that collides, so players cannot walk through it.
+	torso.CanCollide = true
+	limb("Head", Vector3.new(1.5, 1.9, 1.5), CFrame.new(0, 4.3, -0.5) * CFrame.Angles(math.rad(-15), 0, 0))
+	limb(
+		"LeftArm",
+		Vector3.new(0.55, 5.5, 0.55),
+		CFrame.new(-1.5, 0.8, -0.3) * CFrame.Angles(math.rad(-12), 0, math.rad(-6))
+	)
+	limb(
+		"RightArm",
+		Vector3.new(0.55, 5.5, 0.55),
+		CFrame.new(1.5, 0.8, -0.3) * CFrame.Angles(math.rad(-12), 0, math.rad(6))
+	)
+	limb("LeftLeg", Vector3.new(0.8, 3.2, 0.8), CFrame.new(-0.6, -2.4, 0))
+	limb("RightLeg", Vector3.new(0.8, 3.2, 0.8), CFrame.new(0.6, -2.4, 0))
+	table.clear(eyes)
+	for _, x in { -0.35, 0.35 } do
+		local eye = limb(
+			"Eye",
+			Vector3.new(0.3, 0.2, 0.1),
+			CFrame.new(x, 4.5, -1.3),
+			Color3.fromRGB(255, 230, 200),
+			Enum.Material.Neon
+		)
+		eye.CanQuery = false
+		table.insert(eyes, eye)
+	end
+	local glow = Instance.new("PointLight")
+	glow.Color = Color3.fromRGB(255, 120, 90)
+	glow.Range = 8
+	glow.Brightness = 1.2
+	glow.Parent = eyes[1]
+
+	local hum = Instance.new("Humanoid")
+	hum.RigType = Enum.HumanoidRigType.R15
+	hum.HipHeight = 3 -- Root bottom (Y -1) to feet (Y -4).
+	hum.MaxHealth = C.MaxHealth
+	hum.Health = C.MaxHealth
+	hum.WalkSpeed = C.PatrolSpeed
+	hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+	hum.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
+	hum.BreakJointsOnDeath = false
+	hum.Parent = m
+
+	m.PrimaryPart = hrp
+	return m
+end
+
+------------------------------------------------------------------------------
+-- Movement
+------------------------------------------------------------------------------
+
+local function clearPath()
+	table.clear(waypoints)
+	waypointIndex = 1
+	pathGoal = nil
+end
+
+local function stopMoving()
+	if humanoid and root then
+		humanoid:MoveTo(root.Position)
+	end
+	clearPath()
+end
+
+local function setSpeed(speed: number)
+	if humanoid then
+		humanoid.WalkSpeed = speed
+	end
+end
+
+local function lineOfSightClear(from: Vector3, to: Vector3, ignore: { Instance }): boolean
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = ignore
+	params.IgnoreWater = true
+	return workspace:Raycast(from, to - from, params) == nil
+end
+
+local function characterList(): { Instance }
+	local list: { Instance } = {}
+	if model then
+		table.insert(list, model)
+	end
+	for _, player in Players:GetPlayers() do
+		if player.Character then
+			table.insert(list, player.Character)
+		end
+	end
+	return list
+end
+
+-- Moves toward `goal` using pathfinding, re-planning when the goal moves or
+-- the current plan goes stale. Returns false if it could not make progress.
+local function moveToward(goal: Vector3): boolean
+	if not humanoid or not root then
+		return false
+	end
+	local now = os.clock()
+	local needsPath = pathGoal == nil
+		or (goal - (pathGoal :: Vector3)).Magnitude > 4
+		or now - lastPathTime > C.RepathInterval * 3
+		or waypointIndex > #waypoints
+
+	if needsPath and now - lastPathTime >= C.RepathInterval then
+		lastPathTime = now
+		local ok = pcall(function()
+			path:ComputeAsync(root.Position, goal)
+		end)
+		if ok and path.Status == Enum.PathStatus.Success then
+			waypoints = path:GetWaypoints()
+			waypointIndex = math.min(2, #waypoints)
+			pathGoal = goal
+			pathFailures = 0
+		else
+			pathFailures += 1
+			clearPath()
+			-- Fallback: if nothing blocks the way, walk straight there.
+			if lineOfSightClear(root.Position, goal, characterList()) then
+				humanoid:MoveTo(goal)
+				return true
+			end
+			return pathFailures < 4
+		end
+	end
+
+	local waypoint = waypoints[waypointIndex]
+	if waypoint then
+		local flat = Vector3.new(waypoint.Position.X - root.Position.X, 0, waypoint.Position.Z - root.Position.Z)
+		if flat.Magnitude < 3 then
+			waypointIndex += 1
+			waypoint = waypoints[waypointIndex]
+		end
+	end
+	if waypoint then
+		humanoid:MoveTo(waypoint.Position)
+	else
+		humanoid:MoveTo(goal)
+	end
+
+	-- Stuck detection: no real progress for a while means re-plan.
+	if (root.Position - lastProgressPosition).Magnitude > 1.5 then
+		lastProgressPosition = root.Position
+		lastProgressTime = now
+	elseif now - lastProgressTime > 2.5 then
+		lastProgressTime = now
+		clearPath()
+		pathFailures += 1
+		return pathFailures < 4
+	end
+	return true
+end
+
+local function flatDistance(a: Vector3, b: Vector3): number
+	return Vector3.new(a.X - b.X, 0, a.Z - b.Z).Magnitude
+end
+
+------------------------------------------------------------------------------
+-- Senses
+------------------------------------------------------------------------------
+
+local function isHidden(player: Player, position: Vector3): boolean
+	return player:GetAttribute("Crouching") == true and Zones.InAnyTagged("HidingSpot", position)
+end
+
+local function canSee(player: Player, targetRoot: BasePart): boolean
+	if not root or not model then
+		return false
+	end
+	local eyePos = root.Position + Vector3.new(0, 4.3, 0)
+	local toTarget = targetRoot.Position - root.Position
+	local distance = toTarget.Magnitude
+	if distance < 1 then
+		return true
+	end
+	local range = if player:GetAttribute("FlashlightOn") then C.SightRangeFlashlightOn else C.SightRange
+	if distance > range then
+		return false
+	end
+	if isHidden(player, targetRoot.Position) and distance > C.HidingRevealDistance then
+		return false
+	end
+	-- View cone (always notices players brushing right past it).
+	local look = root.CFrame.LookVector
+	local flatDir = Vector3.new(toTarget.X, 0, toTarget.Z).Unit
+	local flatLook = Vector3.new(look.X, 0, look.Z).Unit
+	if distance > 6 and flatLook:Dot(flatDir) < math.cos(math.rad(C.SightHalfAngle)) then
+		return false
+	end
+	return lineOfSightClear(eyePos, targetRoot.Position + Vector3.new(0, 1.5, 0), characterList())
+end
+
+local function noiseRadius(player: Player, targetRoot: BasePart): number
+	local velocity = targetRoot.AssemblyLinearVelocity
+	local speed = Vector3.new(velocity.X, 0, velocity.Z).Magnitude
+	if speed < 2 then
+		return 0
+	elseif player:GetAttribute("Crouching") then
+		return C.HearingCrouch
+	elseif speed > Config.Player.WalkSpeed + 2 then
+		return C.HearingSprint
+	end
+	return C.HearingWalk
+end
+
+-- Finds the closest visible player, and the closest heard noise.
+local function sense(): (Player?, BasePart?, Vector3?)
+	if not root then
+		return nil, nil, nil
+	end
+	local seenPlayer: Player?, seenRoot: BasePart?, seenDistance = nil, nil, math.huge
+	local heardPosition: Vector3?, heardDistance = nil, math.huge
+	for _, player in Players:GetPlayers() do
+		local data = PlayerData.Get(player)
+		local _, _, playerRoot = PlayerData.GetAliveCharacter(player)
+		if not playerRoot or (data and data.Finished) then
+			continue
+		end
+		local distance = (playerRoot.Position - root.Position).Magnitude
+		if distance < seenDistance and canSee(player, playerRoot) then
+			seenPlayer, seenRoot, seenDistance = player, playerRoot, distance
+		end
+		if distance <= noiseRadius(player, playerRoot) and distance < heardDistance then
+			heardPosition, heardDistance = playerRoot.Position, distance
+		end
+	end
+	return seenPlayer, seenRoot, heardPosition
+end
+
+------------------------------------------------------------------------------
+-- State machine
+------------------------------------------------------------------------------
+
+local function setState(newState: State)
+	if state == newState then
+		return
+	end
+	state = newState
+	stateStarted = os.clock()
+	clearPath()
+	if model then
+		model:SetAttribute("State", newState) -- Visible in Studio for debugging.
+	end
+	if newState == "Patrol" or newState == "Return" then
+		setSpeed(C.PatrolSpeed)
+	elseif newState == "Investigate" or newState == "Search" then
+		setSpeed(C.InvestigateSpeed)
+	elseif newState == "Chase" then
+		setSpeed(C.ChaseSpeed)
+	elseif newState == "Hunt" then
+		setSpeed(C.HuntSpeed)
+	end
+end
+
+local function setEyesBright(bright: boolean)
+	for _, eye in eyes do
+		eye.Color = if bright then Color3.fromRGB(255, 40, 40) else Color3.fromRGB(255, 230, 200)
+	end
+end
+
+local function nearestPatrolIndex(): number
+	if not root then
+		return 1
+	end
+	local best, bestDistance = 1, math.huge
+	for i, point in patrolPoints do
+		local d = (point - root.Position).Magnitude
+		if d < bestDistance then
+			best, bestDistance = i, d
+		end
+	end
+	return best
+end
+
+local function currentTargetRoot(): BasePart?
+	if not target then
+		return nil
+	end
+	local data = PlayerData.Get(target)
+	local _, _, targetRoot = PlayerData.GetAliveCharacter(target)
+	if data and data.Finished then
+		return nil
+	end
+	return targetRoot
+end
+
+-- Starts an attack; the damage is decided when the wind-up ends.
+local function beginAttack()
+	setState("Attack")
+	attackStarted = os.clock()
+	stopMoving()
+	setEyesBright(true)
+end
+
+local function updateAttack(returnState: State)
+	local targetRoot = currentTargetRoot()
+	if not target or not targetRoot or not root then
+		setEyesBright(false)
+		setState(returnState)
+		return
+	end
+	-- Turn to face the target during the wind-up.
+	root.CFrame =
+		CFrame.lookAt(root.Position, Vector3.new(targetRoot.Position.X, root.Position.Y, targetRoot.Position.Z))
+	if os.clock() - attackStarted < C.AttackWindup then
+		return
+	end
+	-- Only hits if the player is still in reach: dodging the tell works.
+	if flatDistance(targetRoot.Position, root.Position) <= C.AttackRange + 1 then
+		local _, targetHumanoid = PlayerData.GetAliveCharacter(target)
+		if targetHumanoid then
+			targetHumanoid:TakeDamage(C.AttackDamage)
+			Remotes.CameraShake:FireClient(target, 0.4, 1.2)
+		end
+	end
+	lastAttackTime = os.clock()
+	setEyesBright(false)
+	setState(returnState)
+end
+
+local function tickExplore()
+	if not root then
+		return
+	end
+	local now = os.clock()
+	local seenPlayer, seenRoot, heardPosition = sense()
+
+	if state == "Attack" then
+		updateAttack("Chase")
+		return
+	end
+
+	if seenPlayer and seenRoot then
+		target = seenPlayer
+		lastSeenTime = now
+		lastKnownPosition = seenRoot.Position
+		if state ~= "Chase" then
+			setState("Chase")
+		end
+	elseif
+		heardPosition and (state == "Patrol" or state == "Return" or state == "Search" or state == "Investigate")
+	then
+		if state ~= "Investigate" or (investigatePosition and (heardPosition - investigatePosition).Magnitude > 8) then
+			investigatePosition = heardPosition
+			setState("Investigate")
+		end
+	end
+
+	if state == "Patrol" then
+		if #patrolPoints == 0 then
+			return
+		end
+		local point = patrolPoints[patrolIndex]
+		if flatDistance(point, root.Position) < 4 then
+			patrolIndex = patrolIndex % #patrolPoints + 1
+			point = patrolPoints[patrolIndex]
+		end
+		if not moveToward(point) then
+			patrolIndex = patrolIndex % #patrolPoints + 1
+			pathFailures = 0
+		end
+	elseif state == "Investigate" then
+		local goal = investigatePosition
+		if not goal then
+			setState("Return")
+			return
+		end
+		if flatDistance(goal, root.Position) < 5 or not moveToward(goal) then
+			-- Arrived (or cannot reach): pause and "listen".
+			stopMoving()
+			if now - stateStarted > C.InvestigateTime then
+				setState("Return")
+			end
+		elseif now - stateStarted > C.InvestigateTime * 3 then
+			setState("Return")
+		end
+	elseif state == "Chase" then
+		local targetRoot = currentTargetRoot()
+		if not targetRoot then
+			target = nil
+			setState("Return")
+			return
+		end
+		if now - lastSeenTime > C.LoseSightTime then
+			searchPoint = lastKnownPosition
+			setState("Search")
+			return
+		end
+		if
+			now - lastSeenTime < 0.3
+			and flatDistance(targetRoot.Position, root.Position) <= C.AttackRange
+			and now - lastAttackTime > C.AttackCooldown
+		then
+			beginAttack()
+			return
+		end
+		-- Chase toward where it last saw the player, not where they truly are.
+		if not moveToward(lastKnownPosition or targetRoot.Position) then
+			searchPoint = lastKnownPosition
+			setState("Search")
+		end
+	elseif state == "Search" then
+		if now - stateStarted > C.SearchTime then
+			target = nil
+			setState("Return")
+			return
+		end
+		local goal = searchPoint
+		if not goal or flatDistance(goal, root.Position) < 4 then
+			local base = lastKnownPosition or root.Position
+			searchPoint = base + Vector3.new(rng:NextNumber(-14, 14), 0, rng:NextNumber(-14, 14))
+			return
+		end
+		if not moveToward(goal) then
+			searchPoint = nil
+		end
+	elseif state == "Return" then
+		patrolIndex = nearestPatrolIndex()
+		setState("Patrol")
+	end
+end
+
+-- During the escape the creature ignores stealth and pursues whoever is
+-- still running through the collapsing temple.
+local function tickHunt()
+	if not root then
+		return
+	end
+	local now = os.clock()
+	if now < huntReleaseTime then
+		setState("Idle")
+		stopMoving()
+		return
+	end
+	if state == "Attack" then
+		updateAttack("Hunt")
+		return
+	end
+	local best: Player?, bestRoot: BasePart?, bestDistance = nil, nil, math.huge
+	for _, player in Players:GetPlayers() do
+		local data = PlayerData.Get(player)
+		local _, _, playerRoot = PlayerData.GetAliveCharacter(player)
+		if playerRoot and not (data and data.Finished) then
+			local pos = playerRoot.Position
+			-- Only players still on the escape route (not up the cliff).
+			if pos.Z > 285 and pos.Z < 447 and pos.Y < 18 then
+				local d = (pos - root.Position).Magnitude
+				if d < bestDistance then
+					best, bestRoot, bestDistance = player, playerRoot, d
+				end
+			end
+		end
+	end
+	if not best or not bestRoot then
+		setState("Idle")
+		stopMoving()
+		return
+	end
+	target = best
+	setState("Hunt")
+	if flatDistance(bestRoot.Position, root.Position) <= C.AttackRange and now - lastAttackTime > C.AttackCooldown then
+		beginAttack()
+		return
+	end
+	moveToward(bestRoot.Position)
+end
+
+------------------------------------------------------------------------------
+-- Public API
+------------------------------------------------------------------------------
+
+local function loadPatrolPoints()
+	local markers = CollectionService:GetTagged("StalkerPatrol")
+	table.sort(markers, function(a, b)
+		return (a:GetAttribute("Order") or 0) < (b:GetAttribute("Order") or 0)
+	end)
+	table.clear(patrolPoints)
+	for _, marker in markers do
+		if marker:IsA("BasePart") and marker:IsDescendantOf(workspace) then
+			table.insert(patrolPoints, marker.Position)
+		end
+	end
+	patrolIndex = 1
+end
+
+function StalkerService.Despawn()
+	if model then
+		model:Destroy()
+	end
+	model, humanoid, root = nil, nil, nil
+	table.clear(eyes)
+	clearPath()
+	target = nil
+end
+
+local function spawnAt(position: Vector3)
+	StalkerService.Despawn()
+	local m = buildModel(position)
+	m.Parent = workspace
+	model = m
+	humanoid = m:FindFirstChildOfClass("Humanoid")
+	local hrp = m.PrimaryPart
+	root = hrp
+	if hrp then
+		-- The server simulates the creature, so clients cannot move it.
+		pcall(function()
+			hrp:SetNetworkOwner(nil)
+		end)
+	end
+	lastProgressPosition = position
+	lastProgressTime = os.clock()
+end
+
+-- Spawns the creature on its patrol in the ruins (start of a run).
+function StalkerService.SpawnPatrol()
+	loadPatrolPoints()
+	local marker = Zones.FirstTagged("StalkerSpawn")
+	spawnAt(if marker then marker.Position else Vector3.new(0, 4, 292))
+	mode = "Explore"
+	state = "Idle"
+	setState("Patrol")
+end
+
+-- Starts the escape chase: the creature appears at the temple entrance and
+-- is released after a short delay, giving players a head start.
+function StalkerService.StartHunt(delaySeconds: number)
+	local marker = Zones.FirstTagged("StalkerHuntSpawn")
+	spawnAt(if marker then marker.Position else Vector3.new(0, 4, 296))
+	mode = "Hunt"
+	huntReleaseTime = os.clock() + delaySeconds
+	state = "Patrol"
+	setState("Idle")
+end
+
+function StalkerService.GetMode(): string
+	return mode
+end
+
+function StalkerService.Init()
+	task.spawn(function()
+		while true do
+			task.wait(C.TickInterval)
+			if model and root and humanoid and model.Parent then
+				local ok, err = pcall(if mode == "Hunt" then tickHunt else tickExplore)
+				if not ok then
+					warn("[StalkerService] AI tick failed:", err)
+				end
+			end
+		end
+	end)
+end
+
+return StalkerService
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="32">
+          <Properties>
+            <string name="Name">StoryService</string>
+            <string name="Source"><![CDATA[--!strict
+-- StoryService: objectives, radio dialogue, on-screen messages, and the
+-- one-time story trigger zones placed around the map.
+--
+-- The current objective is stored as an attribute on ReplicatedStorage, so
+-- players who join late automatically see the right objective.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CollectionService = game:GetService("CollectionService")
+
+local Story = require(ReplicatedStorage.Shared.Story)
+local Zones = require(script.Parent.Parent.Util.Zones)
+local PlayerData = require(script.Parent.Parent.Util.PlayerData)
+
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+
+local StoryService = {}
+
+-- Objectives only ever move forward, in this order.
+local OBJECTIVE_ORDER = { "Start", "Camp", "Ruins", "Puzzle", "Escape", "Bridge", "Done" }
+
+local currentObjectiveIndex = 0
+local firedTriggers: { [string]: boolean } = {}
+
+-- Phase gates: some triggers only make sense during a particular phase.
+local triggerRequiresPhase: { [string]: string } = {
+	Bridge = "Escape",
+}
+
+function StoryService.GetPhase(): string
+	return ReplicatedStorage:GetAttribute("Phase") or "Explore"
+end
+
+function StoryService.SetPhase(phase: string)
+	ReplicatedStorage:SetAttribute("Phase", phase)
+end
+
+function StoryService.SetObjective(key: string)
+	local index = table.find(OBJECTIVE_ORDER, key)
+	if not index or index <= currentObjectiveIndex then
+		return
+	end
+	currentObjectiveIndex = index
+	ReplicatedStorage:SetAttribute("Objective", (Story.Objectives :: any)[key])
+	Remotes.Toast:FireAllClients("New objective", "objective")
+end
+
+-- Sends a dialogue sequence to one player, or to everyone if player is nil.
+function StoryService.PlayDialogue(key: string, player: Player?)
+	local lines = (Story.Dialogue :: any)[key]
+	if not lines then
+		warn("[StoryService] Unknown dialogue key:", key)
+		return
+	end
+	if player then
+		Remotes.Dialogue:FireClient(player, lines)
+	else
+		Remotes.Dialogue:FireAllClients(lines)
+	end
+end
+
+function StoryService.Toast(player: Player, text: string, kind: string?)
+	Remotes.Toast:FireClient(player, text, kind or "info")
+end
+
+local function onTrigger(triggerId: string)
+	if triggerId == "ClawMarks" then
+		StoryService.PlayDialogue("ClawMarks")
+	elseif triggerId == "Camp" then
+		StoryService.SetObjective("Camp")
+		StoryService.PlayDialogue("Camp")
+	elseif triggerId == "Ruins" then
+		StoryService.SetObjective("Ruins")
+		StoryService.PlayDialogue("Ruins")
+	elseif triggerId == "Temple" then
+		StoryService.SetObjective("Puzzle")
+		StoryService.PlayDialogue("Temple")
+	elseif triggerId == "Bridge" then
+		StoryService.SetObjective("Bridge")
+		StoryService.PlayDialogue("Bridge")
+	end
+end
+
+-- Resets story progress for a fresh run (Play Again).
+function StoryService.Reset()
+	currentObjectiveIndex = 0
+	table.clear(firedTriggers)
+	StoryService.SetPhase("Explore")
+	StoryService.SetObjective("Start")
+end
+
+function StoryService.Init()
+	StoryService.Reset()
+
+	-- Each new player hears the intro on their first spawn.
+	local function onPlayerAdded(player: Player)
+		local function playIntro()
+			task.wait(2)
+			if player.Parent then
+				StoryService.PlayDialogue("Intro", player)
+			end
+		end
+		if player.Character then
+			task.spawn(playIntro)
+		else
+			player.CharacterAdded:Once(playIntro)
+		end
+	end
+	Players.PlayerAdded:Connect(onPlayerAdded)
+	for _, player in Players:GetPlayers() do
+		onPlayerAdded(player)
+	end
+
+	-- Poll story trigger zones a few times per second (cheap with few zones).
+	task.spawn(function()
+		while true do
+			task.wait(0.25)
+			for _, zone in CollectionService:GetTagged("StoryTrigger") do
+				if not zone:IsA("BasePart") then
+					continue
+				end
+				local id = zone:GetAttribute("TriggerId")
+				if type(id) ~= "string" or firedTriggers[id] then
+					continue
+				end
+				local phase = triggerRequiresPhase[id]
+				if phase and StoryService.GetPhase() ~= phase then
+					continue
+				end
+				for _, player in Players:GetPlayers() do
+					local _, _, root = PlayerData.GetAliveCharacter(player)
+					if root and Zones.Contains(zone, root.Position) then
+						firedTriggers[id] = true
+						onTrigger(id)
+						break
+					end
+				end
+			end
+		end
+	end)
+end
+
+return StoryService
+]]></string>
+          </Properties>
+        </Item>
+      </Item>
+      <Item class="Folder" referent="33">
+        <Properties>
+          <string name="Name">Util</string>
+        </Properties>
+        <Item class="ModuleScript" referent="34">
+          <Properties>
+            <string name="Name">PlayerData</string>
+            <string name="Source"><![CDATA[--!strict
+-- PlayerData: the server's record of each player's run. The client never
+-- writes to this directly; it can only ask (through RemoteEvents) and the
+-- server decides.
+
+local Players = game:GetService("Players")
+
+local Config = require(game:GetService("ReplicatedStorage").Shared.Config)
+
+export type Slot = { Id: string, Count: number }
+
+export type Data = {
+	Inventory: { Slot? },
+	Battery: number,
+	CheckpointOrder: number,
+	CheckpointSpawn: Vector3?,
+	Deaths: number,
+	NotesRead: { [string]: boolean },
+	StartTime: number,
+	Finished: boolean,
+	Busy: boolean, -- True while an item use is in progress.
+	LastUse: number,
+	LastRequest: { [string]: number }, -- Per-remote rate limiting.
+}
+
+local PlayerData = {}
+
+local records: { [Player]: Data } = {}
+
+local function newData(): Data
+	return {
+		Inventory = {},
+		Battery = Config.Flashlight.StartingBattery,
+		CheckpointOrder = 0,
+		CheckpointSpawn = nil,
+		Deaths = 0,
+		NotesRead = {},
+		StartTime = os.clock(),
+		Finished = false,
+		Busy = false,
+		LastUse = 0,
+		LastRequest = {},
+	}
+end
+
+local reset: (Player) -> Data
+
+-- Returns the player's record, creating it on first use (so services do not
+-- depend on the order their PlayerAdded handlers run in). Nil once the
+-- player has left.
+function PlayerData.Get(player: Player): Data?
+	local data = records[player]
+	if not data and player.Parent == Players then
+		data = reset(player)
+	end
+	return data
+end
+
+function PlayerData.Reset(player: Player): Data
+	return reset(player)
+end
+
+function reset(player: Player): Data
+	local data = newData()
+	records[player] = data
+	player:SetAttribute("Battery", data.Battery)
+	player:SetAttribute("FlashlightOn", false)
+	player:SetAttribute("Crouching", false)
+	return data
+end
+
+-- Returns true if the player may use `action` now; false if too soon.
+-- Cheap protection against remote spam from modified clients.
+function PlayerData.RateLimit(player: Player, action: string, interval: number): boolean
+	local data = records[player]
+	if not data then
+		return false
+	end
+	local now = os.clock()
+	local last = data.LastRequest[action]
+	if last and now - last < interval then
+		return false
+	end
+	data.LastRequest[action] = now
+	return true
+end
+
+-- Returns the player's living character parts, or nil if not alive.
+function PlayerData.GetAliveCharacter(player: Player): (Model?, Humanoid?, BasePart?)
+	local character = player.Character
+	if not character then
+		return nil, nil, nil
+	end
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	local root = character:FindFirstChild("HumanoidRootPart")
+	if humanoid and humanoid.Health > 0 and root and root:IsA("BasePart") then
+		return character, humanoid, root
+	end
+	return nil, nil, nil
+end
+
+function PlayerData.Init()
+	Players.PlayerAdded:Connect(function(player)
+		PlayerData.Get(player)
+	end)
+	for _, player in Players:GetPlayers() do
+		PlayerData.Get(player)
+	end
+	Players.PlayerRemoving:Connect(function(player)
+		records[player] = nil
+	end)
+end
+
+return PlayerData
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="35">
+          <Properties>
+            <string name="Name">Zones</string>
+            <string name="Source"><![CDATA[--!strict
+-- Zones: small helpers for "is this point inside that box?" checks and for
+-- binding code to tagged instances (including ones created later, e.g. when
+-- the level is rebuilt for Play Again).
+
+local CollectionService = game:GetService("CollectionService")
+
+local Zones = {}
+
+-- True if a world position lies inside a part's (possibly rotated) box.
+function Zones.Contains(part: BasePart, point: Vector3): boolean
+	local localPoint = part.CFrame:PointToObjectSpace(point)
+	local half = part.Size / 2
+	return math.abs(localPoint.X) <= half.X and math.abs(localPoint.Y) <= half.Y and math.abs(localPoint.Z) <= half.Z
+end
+
+-- True if the point is inside any part carrying the given tag.
+function Zones.InAnyTagged(tag: string, point: Vector3): boolean
+	for _, inst in CollectionService:GetTagged(tag) do
+		if inst:IsA("BasePart") and Zones.Contains(inst, point) then
+			return true
+		end
+	end
+	return false
+end
+
+-- Calls `callback` for every instance with `tag`, now and in the future.
+function Zones.BindTag(tag: string, callback: (Instance) -> ())
+	for _, inst in CollectionService:GetTagged(tag) do
+		task.spawn(callback, inst)
+	end
+	CollectionService:GetInstanceAddedSignal(tag):Connect(callback)
+end
+
+-- First tagged BasePart (used for single markers such as spawn points).
+function Zones.FirstTagged(tag: string): BasePart?
+	for _, inst in CollectionService:GetTagged(tag) do
+		if inst:IsA("BasePart") and inst:IsDescendantOf(workspace) then
+			return inst
+		end
+	end
+	return nil
+end
+
+return Zones
+]]></string>
+          </Properties>
+        </Item>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="ServerStorage" referent="36">
+    <Properties>
+      <string name="Name">ServerStorage</string>
+    </Properties>
+  </Item>
+  <Item class="SoundService" referent="37">
+    <Properties>
+      <string name="Name">SoundService</string>
+    </Properties>
+  </Item>
+  <Item class="StarterPlayer" referent="38">
+    <Properties>
+      <string name="Name">StarterPlayer</string>
+      <float name="CameraMaxZoomDistance">18</float>
+      <float name="CameraMinZoomDistance">4</float>
+      <float name="CharacterJumpPower">42</float>
+      <bool name="CharacterUseJumpPower">true</bool>
+      <float name="CharacterWalkSpeed">12</float>
+      <bool name="EnableMouseLockOption">false</bool>
+    </Properties>
+    <Item class="StarterCharacterScripts" referent="39">
+      <Properties>
+        <string name="Name">StarterCharacterScripts</string>
+      </Properties>
+      <Item class="Script" referent="40">
+        <Properties>
+          <string name="Name">Health</string>
+          <token name="RunContext">0</token>
+          <string name="Source"><![CDATA[-- Health: this empty script replaces Roblox's default "Health" script, which
+-- would otherwise slowly regenerate health. In Riftfall, health only comes
+-- back from healing items (bandages), which makes them meaningful.
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+    <Item class="StarterPlayerScripts" referent="41">
+      <Properties>
+        <string name="Name">StarterPlayerScripts</string>
+      </Properties>
+      <Item class="Folder" referent="42">
+        <Properties>
+          <string name="Name">Client</string>
+        </Properties>
+        <Item class="ModuleScript" referent="43">
+          <Properties>
+            <string name="Name">ClientState</string>
+            <string name="Source"><![CDATA[--!strict
+-- ClientState: small shared table so client controllers can read each
+-- other's local values (for example, the HUD shows the stamina that the
+-- MovementController simulates). Nothing here is trusted by the server.
+
+local ClientState = {
+	Stamina = 100,
+	Crouching = false,
+	-- 0 = the Hollow is far away, 1 = it is right next to you.
+	Danger = 0,
+	-- True while a full-screen panel (note, end screen) is open.
+	ModalOpen = false,
+}
+
+return ClientState
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="Folder" referent="44">
+          <Properties>
+            <string name="Name">Controllers</string>
+          </Properties>
+          <Item class="ModuleScript" referent="45">
+            <Properties>
+              <string name="Name">AtmosphereController</string>
+              <string name="Source"><![CDATA[--!strict
+-- AtmosphereController: local-only mood effects. Rain around the camera,
+-- lightning flashes, camera shake, and a "danger" value that rises as the
+-- Hollow gets close (the HUD turns it into a pulsing edge glow so the threat
+-- is readable, not a cheap surprise).
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SoundService = game:GetService("SoundService")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+local ClientState = require(script.Parent.Parent.ClientState)
+
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local player = Players.LocalPlayer
+
+local AtmosphereController = {}
+
+local shakeUntil = 0
+local shakeIntensity = 0
+local rng = Random.new()
+
+-- Plays a configured sound if an ID has been set (see Config.Sounds).
+local function makeSound(id: string, looped: boolean, volume: number): Sound?
+	if id == "" then
+		return nil
+	end
+	local sound = Instance.new("Sound")
+	sound.SoundId = id
+	sound.Looped = looped
+	sound.Volume = volume
+	sound.Parent = SoundService
+	return sound
+end
+
+-- Inside the temple and tunnel there is a roof, so no rain or lightning.
+local function isIndoors(position: Vector3): boolean
+	return position.Z > 298 and position.Z < 432 and position.Y < 24
+end
+
+local function createRain(): ParticleEmitter
+	local emitterPart = Instance.new("Part")
+	emitterPart.Name = "RainEmitter"
+	emitterPart.Anchored = true
+	emitterPart.CanCollide = false
+	emitterPart.CanQuery = false
+	emitterPart.CanTouch = false
+	emitterPart.Transparency = 1
+	emitterPart.Size = Vector3.new(90, 1, 90)
+	emitterPart.Parent = workspace.CurrentCamera
+
+	local rain = Instance.new("ParticleEmitter")
+	rain.Name = "Rain"
+	rain.Shape = Enum.ParticleEmitterShape.Box
+	rain.ShapeInOut = Enum.ParticleEmitterShapeInOut.Outward
+	rain.EmissionDirection = Enum.NormalId.Bottom
+	rain.Rate = 700
+	rain.Lifetime = NumberRange.new(0.8, 1.1)
+	rain.Speed = NumberRange.new(70, 85)
+	rain.Size = NumberSequence.new(0.07)
+	rain.Squash = NumberSequence.new(3) -- Stretch drops into streaks.
+	rain.Orientation = Enum.ParticleOrientation.VelocityParallel
+	rain.Transparency = NumberSequence.new(0.55)
+	rain.Color = ColorSequence.new(Color3.fromRGB(170, 190, 210))
+	rain.LightInfluence = 0.6
+	rain.Parent = emitterPart
+	return rain
+end
+
+local function flashLightning()
+	local original = Lighting.OutdoorAmbient
+	local originalBrightness = Lighting.Brightness
+	for _ = 1, rng:NextInteger(1, 2) do
+		Lighting.OutdoorAmbient = Color3.fromRGB(150, 160, 190)
+		Lighting.Brightness = 2.5
+		task.wait(0.07)
+		Lighting.OutdoorAmbient = original
+		Lighting.Brightness = originalBrightness
+		task.wait(0.1)
+	end
+end
+
+function AtmosphereController.Init()
+	local rain = createRain()
+	local rainSound = makeSound(Config.Sounds.Rain, true, 0.4)
+	if rainSound then
+		rainSound:Play()
+	end
+	local heartbeat = makeSound(Config.Sounds.Heartbeat, true, 0)
+	if heartbeat then
+		heartbeat:Play()
+	end
+	local thunder = makeSound(Config.Sounds.Thunder, false, 0.6)
+	local rumble = makeSound(Config.Sounds.Rumble, false, 0.7)
+
+	Remotes.CameraShake.OnClientEvent:Connect(function(duration: number, intensity: number)
+		if type(duration) ~= "number" or type(intensity) ~= "number" then
+			return
+		end
+		shakeUntil = math.max(shakeUntil, os.clock() + duration)
+		shakeIntensity = math.max(intensity, if os.clock() < shakeUntil then shakeIntensity else 0)
+		if rumble and duration > 1 then
+			rumble:Play()
+		end
+	end)
+
+	-- Rain follows the camera.
+	RunService.RenderStepped:Connect(function()
+		local camera = workspace.CurrentCamera
+		local emitterPart = rain.Parent
+		if not camera or not emitterPart or not emitterPart:IsA("BasePart") then
+			return
+		end
+		local pos = camera.CFrame.Position
+		emitterPart.CFrame = CFrame.new(pos + Vector3.new(0, 35, 0))
+		rain.Enabled = not isIndoors(pos)
+		if rainSound then
+			rainSound.Volume = if isIndoors(pos) then 0.1 else 0.4
+		end
+	end)
+
+	-- Camera shake runs after the default camera has moved this frame.
+	RunService:BindToRenderStep("RiftfallShake", Enum.RenderPriority.Camera.Value + 1, function()
+		local now = os.clock()
+		if now >= shakeUntil then
+			return
+		end
+		local camera = workspace.CurrentCamera
+		local strength = shakeIntensity * math.clamp((shakeUntil - now) / 0.5, 0, 1)
+		camera.CFrame *= CFrame.Angles(
+			math.rad(rng:NextNumber(-1, 1) * strength),
+			math.rad(rng:NextNumber(-1, 1) * strength),
+			0
+		)
+	end)
+
+	-- Danger meter: how close is the Hollow?
+	task.spawn(function()
+		while true do
+			task.wait(0.15)
+			local hollow = workspace:FindFirstChild("Hollow")
+			local character = player.Character
+			local myRoot = character and character:FindFirstChild("HumanoidRootPart")
+			local hollowRoot = hollow and hollow:FindFirstChild("HumanoidRootPart")
+			if myRoot and myRoot:IsA("BasePart") and hollowRoot and hollowRoot:IsA("BasePart") then
+				local distance = (myRoot.Position - hollowRoot.Position).Magnitude
+				ClientState.Danger = math.clamp(1 - (distance - 8) / 32, 0, 1)
+			else
+				ClientState.Danger = 0
+			end
+			if heartbeat then
+				heartbeat.Volume = ClientState.Danger * 0.8
+			end
+		end
+	end)
+
+	-- Lightning every so often while outdoors.
+	task.spawn(function()
+		while true do
+			task.wait(rng:NextNumber(14, 30))
+			local camera = workspace.CurrentCamera
+			if camera and not isIndoors(camera.CFrame.Position) then
+				flashLightning()
+				if thunder then
+					task.wait(rng:NextNumber(0.4, 1.5))
+					thunder:Play()
+				end
+			end
+		end
+	end)
+end
+
+return AtmosphereController
+]]></string>
+            </Properties>
+          </Item>
+          <Item class="ModuleScript" referent="46">
+            <Properties>
+              <string name="Name">FlashlightController</string>
+              <string name="Source"><![CDATA[--!strict
+-- FlashlightController: press F (or the on-screen button) to ask the server
+-- to toggle your flashlight. Locally, the light is aimed where your camera
+-- looks, which feels much better than it pointing wherever your head faces.
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local ContextActionService = game:GetService("ContextActionService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local player = Players.LocalPlayer
+
+local FlashlightController = {}
+
+local function onToggle(_: string, inputState: Enum.UserInputState): Enum.ContextActionResult
+	if inputState == Enum.UserInputState.Begin then
+		Remotes.ToggleFlashlight:FireServer()
+	end
+	return Enum.ContextActionResult.Sink
+end
+
+function FlashlightController.Init()
+	ContextActionService:BindAction("RiftfallFlashlight", onToggle, true, Enum.KeyCode.F, Enum.KeyCode.ButtonY)
+	ContextActionService:SetTitle("RiftfallFlashlight", "Light")
+	ContextActionService:SetPosition("RiftfallFlashlight", UDim2.new(1, -110, 1, -210))
+
+	RunService.RenderStepped:Connect(function()
+		local character = player.Character
+		local head = character and character:FindFirstChild("Head")
+		local attachment = head and head:FindFirstChild("FlashlightAttachment")
+		local camera = workspace.CurrentCamera
+		if attachment and attachment:IsA("Attachment") and camera then
+			local origin = attachment.WorldPosition
+			attachment.WorldCFrame = CFrame.lookAt(origin, origin + camera.CFrame.LookVector)
+		end
+	end)
+end
+
+return FlashlightController
+]]></string>
+            </Properties>
+          </Item>
+          <Item class="ModuleScript" referent="47">
+            <Properties>
+              <string name="Name">HUDController</string>
+              <string name="Source"><![CDATA[--!strict
+-- HUDController: builds and updates all on-screen UI in code.
+--
+--   top-left       current objective
+--   top-center     short messages ("Picked up Battery", "Checkpoint reached")
+--   bottom-left    health, flashlight battery, stamina
+--   bottom-center  inventory (click/tap a slot or press 1-4 to use it; the
+--                  small X drops it) and radio subtitles above it
+--   screen edges   red flash when hurt, dark pulse when the Hollow is near
+--   full screen    note reader, death screen, end-of-demo results
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+local Items = require(ReplicatedStorage.Shared.Items)
+local Story = require(ReplicatedStorage.Shared.Story)
+local ClientState = require(script.Parent.Parent.ClientState)
+
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local player = Players.LocalPlayer
+
+local HUDController = {}
+
+local COLORS = {
+	Panel = Color3.fromRGB(12, 14, 16),
+	Text = Color3.fromRGB(232, 226, 212),
+	Muted = Color3.fromRGB(160, 156, 146),
+	Accent = Color3.fromRGB(190, 110, 255),
+	Health = Color3.fromRGB(200, 60, 60),
+	Battery = Color3.fromRGB(110, 190, 255),
+	Stamina = Color3.fromRGB(220, 220, 210),
+	Good = Color3.fromRGB(110, 230, 150),
+	Warning = Color3.fromRGB(255, 190, 80),
+}
+local FONT = Enum.Font.GothamMedium
+local FONT_BOLD = Enum.Font.GothamBold
+
+type Props = { [string]: any }
+
+-- Tiny UI helper: create an instance, set properties, add children.
+local function new(className: string, props: Props, children: { Instance }?): any
+	local inst = Instance.new(className)
+	for key, value in props do
+		if key ~= "Parent" then
+			(inst :: any)[key] = value
+		end
+	end
+	if children then
+		for _, child in children do
+			child.Parent = inst
+		end
+	end
+	if props.Parent then
+		inst.Parent = props.Parent
+	end
+	return inst
+end
+
+local function corner(radius: number): UICorner
+	return new("UICorner", { CornerRadius = UDim.new(0, radius) })
+end
+
+local function panel(props: Props): Frame
+	local frame = new("Frame", props)
+	frame.BackgroundColor3 = COLORS.Panel
+	frame.BackgroundTransparency = props.BackgroundTransparency or 0.3
+	frame.BorderSizePixel = 0
+	corner(8).Parent = frame
+	return frame
+end
+
+local function label(props: Props): TextLabel
+	local base: Props = {
+		BackgroundTransparency = 1,
+		Font = FONT,
+		TextColor3 = COLORS.Text,
+		TextSize = 16,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextWrapped = true,
+	}
+	for key, value in props do
+		base[key] = value
+	end
+	return new("TextLabel", base)
+end
+
+local gui: ScreenGui
+local objectiveText: TextLabel
+local toastList: Frame
+local subtitleButton: TextButton
+local usingLabel: TextLabel
+local descLabel: TextLabel
+local slotButtons: { TextButton } = {}
+local inventoryCopy: { any } = {}
+local bars: { [string]: Frame } = {}
+local batteryLabel: TextLabel
+local edges: { Frame } = {}
+local noteFrame: Frame
+local noteTitle: TextLabel
+local noteBody: TextLabel
+local deathFrame: Frame
+local endFrame: Frame
+local endStats: TextLabel
+
+local dialogueQueue: { any } = {}
+local skipCurrentLine = false
+local damageFlash = 0
+
+------------------------------------------------------------------------------
+-- Building
+------------------------------------------------------------------------------
+
+local function buildObjective()
+	local frame = panel({
+		Name = "Objective",
+		Position = UDim2.fromOffset(16, 16),
+		Size = UDim2.fromOffset(340, 64),
+		Parent = gui,
+	})
+	label({
+		Text = "OBJECTIVE",
+		TextSize = 12,
+		Font = FONT_BOLD,
+		TextColor3 = COLORS.Accent,
+		Position = UDim2.fromOffset(12, 8),
+		Size = UDim2.new(1, -24, 0, 14),
+		Parent = frame,
+	})
+	objectiveText = label({
+		Text = "",
+		TextSize = 16,
+		Position = UDim2.fromOffset(12, 24),
+		Size = UDim2.new(1, -24, 1, -30),
+		TextYAlignment = Enum.TextYAlignment.Top,
+		Parent = frame,
+	})
+end
+
+local function buildToasts()
+	toastList = new("Frame", {
+		Name = "Toasts",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 16),
+		Size = UDim2.fromOffset(420, 200),
+		BackgroundTransparency = 1,
+		Parent = gui,
+	}, {
+		new("UIListLayout", {
+			Padding = UDim.new(0, 6),
+			HorizontalAlignment = Enum.HorizontalAlignment.Center,
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		}),
+	})
+end
+
+local function makeBar(parent: Instance, name: string, color: Color3, y: number, height: number)
+	local back = new("Frame", {
+		Name = name,
+		Position = UDim2.fromOffset(12, y),
+		Size = UDim2.new(1, -24, 0, height),
+		BackgroundColor3 = Color3.fromRGB(40, 40, 44),
+		BorderSizePixel = 0,
+		Parent = parent,
+	}, { corner(4) })
+	local fill = new("Frame", {
+		Name = "Fill",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = color,
+		BorderSizePixel = 0,
+		Parent = back,
+	}, { corner(4) })
+	bars[name] = fill
+end
+
+local function buildBars()
+	local frame = panel({
+		Name = "Vitals",
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 16, 1, -16),
+		Size = UDim2.fromOffset(240, 96),
+		Parent = gui,
+	})
+	label({
+		Text = "HEALTH",
+		TextSize = 11,
+		Font = FONT_BOLD,
+		TextColor3 = COLORS.Muted,
+		Position = UDim2.fromOffset(12, 6),
+		Size = UDim2.new(1, -24, 0, 12),
+		Parent = frame,
+	})
+	makeBar(frame, "Health", COLORS.Health, 20, 10)
+	batteryLabel = label({
+		Text = "FLASHLIGHT (F)",
+		TextSize = 11,
+		Font = FONT_BOLD,
+		TextColor3 = COLORS.Muted,
+		Position = UDim2.fromOffset(12, 36),
+		Size = UDim2.new(1, -24, 0, 12),
+		Parent = frame,
+	})
+	makeBar(frame, "Battery", COLORS.Battery, 50, 10)
+	label({
+		Text = "STAMINA",
+		TextSize = 11,
+		Font = FONT_BOLD,
+		TextColor3 = COLORS.Muted,
+		Position = UDim2.fromOffset(12, 66),
+		Size = UDim2.new(1, -24, 0, 12),
+		Parent = frame,
+	})
+	makeBar(frame, "Stamina", COLORS.Stamina, 80, 6)
+end
+
+local function refreshInventory()
+	for i, button in slotButtons do
+		local slot = inventoryCopy[i]
+		local nameLabel = button:FindFirstChild("ItemName") :: TextLabel
+		local countLabel = button:FindFirstChild("Count") :: TextLabel
+		local dropButton = button:FindFirstChild("Drop") :: TextButton
+		local swatch = button:FindFirstChild("Swatch") :: Frame
+		if slot and Items[slot.Id] then
+			local def = Items[slot.Id]
+			nameLabel.Text = def.DisplayName
+			countLabel.Text = if slot.Count > 1 then "x" .. slot.Count else ""
+			dropButton.Visible = not def.KeyItem
+			swatch.Visible = true
+			swatch.BackgroundColor3 = def.Color
+		else
+			nameLabel.Text = ""
+			countLabel.Text = ""
+			dropButton.Visible = false
+			swatch.Visible = false
+		end
+	end
+end
+
+local function buildInventory()
+	local bar = new("Frame", {
+		Name = "Inventory",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -16),
+		Size = UDim2.fromOffset(Config.Inventory.SlotCount * 78, 72),
+		BackgroundTransparency = 1,
+		Parent = gui,
+	}, {
+		new("UIListLayout", {
+			FillDirection = Enum.FillDirection.Horizontal,
+			Padding = UDim.new(0, 6),
+			HorizontalAlignment = Enum.HorizontalAlignment.Center,
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		}),
+	})
+	for i = 1, Config.Inventory.SlotCount do
+		local button = new("TextButton", {
+			Name = "Slot" .. i,
+			LayoutOrder = i,
+			Size = UDim2.fromOffset(72, 72),
+			BackgroundColor3 = COLORS.Panel,
+			BackgroundTransparency = 0.3,
+			BorderSizePixel = 0,
+			Text = "",
+			AutoButtonColor = true,
+			Parent = bar,
+		}, { corner(8) })
+		label({
+			Name = "Key",
+			Text = tostring(i),
+			TextSize = 12,
+			Font = FONT_BOLD,
+			TextColor3 = COLORS.Muted,
+			Position = UDim2.fromOffset(6, 4),
+			Size = UDim2.fromOffset(14, 14),
+			Parent = button,
+		})
+		new("Frame", {
+			Name = "Swatch",
+			AnchorPoint = Vector2.new(0.5, 0),
+			Position = UDim2.new(0.5, 0, 0, 14),
+			Size = UDim2.fromOffset(18, 18),
+			BackgroundColor3 = COLORS.Text,
+			BorderSizePixel = 0,
+			Visible = false,
+			Parent = button,
+		}, { corner(9) })
+		label({
+			Name = "ItemName",
+			Text = "",
+			TextSize = 12,
+			TextXAlignment = Enum.TextXAlignment.Center,
+			Position = UDim2.fromOffset(2, 36),
+			Size = UDim2.new(1, -4, 0, 16),
+			Parent = button,
+		})
+		label({
+			Name = "Count",
+			Text = "",
+			TextSize = 12,
+			Font = FONT_BOLD,
+			TextXAlignment = Enum.TextXAlignment.Right,
+			Position = UDim2.new(0, 0, 1, -18),
+			Size = UDim2.new(1, -6, 0, 14),
+			Parent = button,
+		})
+		local drop = new("TextButton", {
+			Name = "Drop",
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.new(1, -3, 0, 3),
+			Size = UDim2.fromOffset(18, 18),
+			BackgroundColor3 = Color3.fromRGB(70, 40, 40),
+			Text = "X",
+			Font = FONT_BOLD,
+			TextSize = 11,
+			TextColor3 = COLORS.Text,
+			Visible = false,
+			Parent = button,
+		}, { corner(9) })
+		button.Activated:Connect(function()
+			Remotes.UseItem:FireServer(i)
+		end)
+		drop.Activated:Connect(function()
+			Remotes.DropItem:FireServer(i)
+		end)
+		button.MouseEnter:Connect(function()
+			local slot = inventoryCopy[i]
+			descLabel.Text = if slot and Items[slot.Id] then Items[slot.Id].Description else ""
+		end)
+		button.MouseLeave:Connect(function()
+			descLabel.Text = ""
+		end)
+		slotButtons[i] = button
+	end
+	descLabel = label({
+		Name = "Description",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -92),
+		Size = UDim2.fromOffset(360, 18),
+		TextSize = 13,
+		TextColor3 = COLORS.Muted,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Text = "",
+		Parent = gui,
+	})
+	usingLabel = label({
+		Name = "Using",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -112),
+		Size = UDim2.fromOffset(360, 20),
+		TextSize = 15,
+		Font = FONT_BOLD,
+		TextColor3 = COLORS.Good,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Text = "",
+		Parent = gui,
+	})
+end
+
+local function buildSubtitles()
+	subtitleButton = new("TextButton", {
+		Name = "Subtitles",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -140),
+		Size = UDim2.fromScale(0.6, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundColor3 = COLORS.Panel,
+		BackgroundTransparency = 0.25,
+		BorderSizePixel = 0,
+		AutoButtonColor = false,
+		Font = FONT,
+		TextSize = 18,
+		TextColor3 = COLORS.Text,
+		TextWrapped = true,
+		RichText = true,
+		Text = "",
+		Visible = false,
+		Parent = gui,
+	}, {
+		corner(8),
+		new("UIPadding", {
+			PaddingTop = UDim.new(0, 10),
+			PaddingBottom = UDim.new(0, 10),
+			PaddingLeft = UDim.new(0, 14),
+			PaddingRight = UDim.new(0, 14),
+		}),
+		new("UISizeConstraint", { MaxSize = Vector2.new(720, math.huge) }),
+	})
+	-- Click/tap the subtitle (or press Enter) to skip the current line.
+	subtitleButton.Activated:Connect(function()
+		skipCurrentLine = true
+	end)
+end
+
+local function makeEdge(name: string, anchor: Vector2, position: UDim2, size: UDim2, rotation: number)
+	local edge = new("Frame", {
+		Name = name,
+		AnchorPoint = anchor,
+		Position = position,
+		Size = size,
+		BackgroundColor3 = COLORS.Health,
+		BackgroundTransparency = 0,
+		BorderSizePixel = 0,
+		Parent = gui,
+	}, {
+		-- Solid at the screen edge, fading to nothing toward the middle.
+		new("UIGradient", { Rotation = rotation, Transparency = NumberSequence.new(0, 1) }),
+	})
+	edge.Visible = false
+	table.insert(edges, edge)
+end
+
+local function buildEdges()
+	makeEdge("EdgeTop", Vector2.new(0, 0), UDim2.fromScale(0, 0), UDim2.fromScale(1, 0.22), 90)
+	makeEdge("EdgeBottom", Vector2.new(0, 1), UDim2.fromScale(0, 1), UDim2.fromScale(1, 0.22), -90)
+	makeEdge("EdgeLeft", Vector2.new(0, 0), UDim2.fromScale(0, 0), UDim2.fromScale(0.18, 1), 0)
+	makeEdge("EdgeRight", Vector2.new(1, 0), UDim2.fromScale(1, 0), UDim2.fromScale(0.18, 1), 180)
+end
+
+local function buildNoteReader()
+	noteFrame = panel({
+		Name = "NoteReader",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(0.9, 0.75),
+		BackgroundTransparency = 0.05,
+		Visible = false,
+		ZIndex = 10,
+		Parent = gui,
+	})
+	noteFrame.BackgroundColor3 = Color3.fromRGB(34, 30, 24)
+	new("UISizeConstraint", { MaxSize = Vector2.new(560, 460), Parent = noteFrame })
+	noteTitle = label({
+		Text = "",
+		TextSize = 20,
+		Font = FONT_BOLD,
+		TextColor3 = Color3.fromRGB(240, 220, 170),
+		Position = UDim2.fromOffset(20, 16),
+		Size = UDim2.new(1, -40, 0, 26),
+		ZIndex = 11,
+		Parent = noteFrame,
+	})
+	local scroll = new("ScrollingFrame", {
+		Position = UDim2.fromOffset(20, 52),
+		Size = UDim2.new(1, -40, 1, -110),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ScrollBarThickness = 6,
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		CanvasSize = UDim2.new(),
+		ZIndex = 11,
+		Parent = noteFrame,
+	})
+	noteBody = label({
+		Text = "",
+		TextSize = 17,
+		Font = Enum.Font.Merriweather,
+		TextColor3 = Color3.fromRGB(230, 220, 200),
+		Size = UDim2.fromScale(1, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		ZIndex = 11,
+		Parent = scroll,
+	})
+	local close = new("TextButton", {
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -14),
+		Size = UDim2.fromOffset(160, 38),
+		BackgroundColor3 = Color3.fromRGB(70, 60, 48),
+		Font = FONT_BOLD,
+		TextSize = 16,
+		TextColor3 = COLORS.Text,
+		Text = "Close (Enter)",
+		ZIndex = 11,
+		Parent = noteFrame,
+	}, { corner(6) })
+	close.Activated:Connect(function()
+		noteFrame.Visible = false
+		ClientState.ModalOpen = false
+	end)
+end
+
+local function buildDeathScreen()
+	deathFrame = new("Frame", {
+		Name = "Death",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.new(0, 0, 0),
+		BackgroundTransparency = 1,
+		Visible = false,
+		ZIndex = 20,
+		Parent = gui,
+	})
+	label({
+		Text = "YOU DIDN'T MAKE IT",
+		TextSize = 34,
+		Font = FONT_BOLD,
+		TextColor3 = COLORS.Health,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.45),
+		Size = UDim2.fromOffset(600, 44),
+		ZIndex = 21,
+		Parent = deathFrame,
+	})
+	label({
+		Text = "Returning to your last checkpoint...",
+		TextSize = 18,
+		TextColor3 = COLORS.Muted,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.53),
+		Size = UDim2.fromOffset(600, 24),
+		ZIndex = 21,
+		Parent = deathFrame,
+	})
+end
+
+local function buildEndScreen()
+	endFrame = new("Frame", {
+		Name = "EndScreen",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.fromRGB(6, 6, 10),
+		BackgroundTransparency = 0.15,
+		Visible = false,
+		ZIndex = 30,
+		Parent = gui,
+	})
+	label({
+		Text = "CHAPTER 1: THE FORGOTTEN EXPEDITION",
+		TextSize = 16,
+		Font = FONT_BOLD,
+		TextColor3 = COLORS.Accent,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.fromScale(0.5, 0.2),
+		Size = UDim2.new(0.9, 0, 0, 22),
+		ZIndex = 31,
+		Parent = endFrame,
+	})
+	label({
+		Text = "DEMO COMPLETE",
+		TextSize = 42,
+		Font = FONT_BOLD,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0.2, 28),
+		Size = UDim2.new(0.9, 0, 0, 50),
+		ZIndex = 31,
+		Parent = endFrame,
+	})
+	endStats = label({
+		Text = "",
+		TextSize = 18,
+		TextColor3 = COLORS.Text,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0.2, 100),
+		Size = UDim2.new(0.9, 0, 0, 140),
+		ZIndex = 31,
+		Parent = endFrame,
+	})
+	label({
+		Text = "Riftfall: The Last Ascent continues in Chapter 2 - Blackstone Research Facility.",
+		TextSize = 14,
+		TextColor3 = COLORS.Muted,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0.2, 240),
+		Size = UDim2.new(0.9, 0, 0, 40),
+		ZIndex = 31,
+		Parent = endFrame,
+	})
+	local again = new("TextButton", {
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0.2, 290),
+		Size = UDim2.fromOffset(200, 46),
+		BackgroundColor3 = COLORS.Accent,
+		Font = FONT_BOLD,
+		TextSize = 18,
+		TextColor3 = Color3.new(1, 1, 1),
+		Text = "Play Again",
+		ZIndex = 31,
+		Parent = endFrame,
+	}, { corner(8) })
+	again.Activated:Connect(function()
+		Remotes.RequestReplay:FireServer()
+	end)
+end
+
+local function buildControlsHint()
+	if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
+		return -- Touch players get on-screen buttons instead.
+	end
+	label({
+		Name = "Controls",
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, -16, 1, -16),
+		Size = UDim2.fromOffset(260, 100),
+		TextSize = 13,
+		TextColor3 = COLORS.Muted,
+		TextXAlignment = Enum.TextXAlignment.Right,
+		TextYAlignment = Enum.TextYAlignment.Bottom,
+		Text = "WASD  move\nShift  sprint (loud)\nC  crouch (quiet)\nF  flashlight\nE  interact     1-4  use item",
+		Parent = gui,
+	})
+end
+
+------------------------------------------------------------------------------
+-- Behaviour
+------------------------------------------------------------------------------
+
+local TOAST_COLORS: { [string]: Color3 } = {
+	info = COLORS.Text,
+	good = COLORS.Good,
+	warning = COLORS.Warning,
+	objective = COLORS.Accent,
+	checkpoint = COLORS.Good,
+}
+
+local function showToast(text: string, kind: string)
+	local toast = label({
+		Text = text,
+		TextSize = 16,
+		Font = FONT_BOLD,
+		TextColor3 = TOAST_COLORS[kind] or COLORS.Text,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		BackgroundColor3 = COLORS.Panel,
+		BackgroundTransparency = 0.3,
+		Size = UDim2.fromOffset(400, 32),
+		LayoutOrder = math.floor(os.clock() * 100),
+		Parent = toastList,
+	})
+	corner(6).Parent = toast
+	task.delay(3, function()
+		local tween =
+			TweenService:Create(toast, TweenInfo.new(0.5), { TextTransparency = 1, BackgroundTransparency = 1 })
+		tween:Play()
+		tween.Completed:Wait()
+		toast:Destroy()
+	end)
+end
+
+local function escapeRichText(text: string): string
+	return (text:gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;"))
+end
+
+local function runDialogue()
+	while true do
+		local line = table.remove(dialogueQueue, 1)
+		if not line then
+			subtitleButton.Visible = false
+			return
+		end
+		if type(line) == "table" and type(line.Text) == "string" then
+			subtitleButton.Text = string.format(
+				'<font color="#be6eff"><b>%s</b></font>   %s',
+				escapeRichText(tostring(line.Speaker or "")),
+				escapeRichText(line.Text)
+			)
+			subtitleButton.Visible = true
+			skipCurrentLine = false
+			local endTime = os.clock() + (tonumber(line.Duration) or 4)
+			while os.clock() < endTime and not skipCurrentLine do
+				task.wait(0.05)
+			end
+		end
+	end
+end
+
+local dialogueRunning = false
+local function queueDialogue(lines: any)
+	if type(lines) ~= "table" then
+		return
+	end
+	for _, line in lines do
+		table.insert(dialogueQueue, line)
+	end
+	if not dialogueRunning then
+		dialogueRunning = true
+		task.spawn(function()
+			runDialogue()
+			dialogueRunning = false
+		end)
+	end
+end
+
+local function showNote(noteId: string)
+	local note = (Story.Notes :: any)[noteId]
+	if not note then
+		return
+	end
+	noteTitle.Text = note.Title
+	noteBody.Text = note.Body
+	noteFrame.Visible = true
+	ClientState.ModalOpen = true
+end
+
+local function formatTime(seconds: number): string
+	local s = math.floor(seconds)
+	return string.format("%d:%02d", s // 60, s % 60)
+end
+
+local function showEnd(stats: any)
+	if type(stats) ~= "table" then
+		return
+	end
+	endStats.Text = string.format(
+		"Time: %s\nDeaths: %d\nNotes found: %d / %d\nRift Shard recovered: %s",
+		formatTime(tonumber(stats.Time) or 0),
+		tonumber(stats.Deaths) or 0,
+		tonumber(stats.NotesRead) or 0,
+		tonumber(stats.NotesTotal) or 0,
+		if stats.FoundShard then "Yes" else "No (it's in the temple...)"
+	)
+	endFrame.Visible = true
+	ClientState.ModalOpen = true
+end
+
+local function bindCharacter(character: Model)
+	deathFrame.Visible = false
+	deathFrame.BackgroundTransparency = 1
+	endFrame.Visible = false
+	ClientState.ModalOpen = noteFrame.Visible
+	local humanoid = character:WaitForChild("Humanoid") :: Humanoid
+	local lastHealth = humanoid.Health
+	humanoid.HealthChanged:Connect(function(health)
+		if health < lastHealth - 0.5 then
+			damageFlash = 1
+		end
+		lastHealth = health
+	end)
+	humanoid.Died:Connect(function()
+		deathFrame.Visible = true
+		TweenService:Create(deathFrame, TweenInfo.new(1.2), { BackgroundTransparency = 0.2 }):Play()
+	end)
+end
+
+function HUDController.Init()
+	gui = new("ScreenGui", {
+		Name = "RiftfallHUD",
+		ResetOnSpawn = false,
+		IgnoreGuiInset = false,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+		ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets,
+		Parent = player:WaitForChild("PlayerGui"),
+	})
+	buildEdges()
+	buildObjective()
+	buildToasts()
+	buildBars()
+	buildInventory()
+	buildSubtitles()
+	buildControlsHint()
+	buildNoteReader()
+	buildDeathScreen()
+	buildEndScreen()
+	refreshInventory()
+
+	-- Objective (stored on ReplicatedStorage so late joiners see it too).
+	local function updateObjective()
+		local text = ReplicatedStorage:GetAttribute("Objective")
+		objectiveText.Text = if type(text) == "string" then text else ""
+	end
+	ReplicatedStorage:GetAttributeChangedSignal("Objective"):Connect(updateObjective)
+	updateObjective()
+
+	-- Item-use progress text.
+	player:GetAttributeChangedSignal("UsingItem"):Connect(function()
+		local using = player:GetAttribute("UsingItem")
+		usingLabel.Text = if type(using) == "string" then "Using " .. using .. "..." else ""
+	end)
+
+	Remotes.Toast.OnClientEvent:Connect(function(text, kind)
+		if type(text) == "string" then
+			showToast(text, if type(kind) == "string" then kind else "info")
+		end
+	end)
+	Remotes.Dialogue.OnClientEvent:Connect(queueDialogue)
+	Remotes.ShowNote.OnClientEvent:Connect(function(noteId)
+		if type(noteId) == "string" then
+			showNote(noteId)
+		end
+	end)
+	Remotes.InventoryChanged.OnClientEvent:Connect(function(slots)
+		if type(slots) == "table" then
+			inventoryCopy = {}
+			for i = 1, Config.Inventory.SlotCount do
+				local slot = slots[i]
+				inventoryCopy[i] = if type(slot) == "table" then slot else nil
+			end
+			refreshInventory()
+		end
+	end)
+	Remotes.RunComplete.OnClientEvent:Connect(showEnd)
+
+	UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if gameProcessed then
+			return
+		end
+		local slotKeys = { Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.KeyCode.Four }
+		local index = table.find(slotKeys, input.KeyCode)
+		if index and index <= Config.Inventory.SlotCount then
+			Remotes.UseItem:FireServer(index)
+		elseif input.KeyCode == Enum.KeyCode.Return then
+			if noteFrame.Visible then
+				noteFrame.Visible = false
+				ClientState.ModalOpen = endFrame.Visible
+			else
+				skipCurrentLine = true
+			end
+		end
+	end)
+
+	player.CharacterAdded:Connect(bindCharacter)
+	if player.Character then
+		task.spawn(bindCharacter, player.Character)
+	end
+
+	-- Per-frame bar and edge-effect updates (cheap property sets only).
+	local pulse = 0
+	RunService.RenderStepped:Connect(function(dt)
+		local character = player.Character
+		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+		local healthFraction = 0
+		if humanoid and humanoid.MaxHealth > 0 then
+			healthFraction = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
+		end
+		bars.Health.Size = UDim2.fromScale(healthFraction, 1)
+
+		local battery = player:GetAttribute("Battery")
+		local batteryFraction = if type(battery) == "number" then battery / Config.Flashlight.MaxBattery else 0
+		bars.Battery.Size = UDim2.fromScale(math.clamp(batteryFraction, 0, 1), 1)
+		local lightOn = player:GetAttribute("FlashlightOn") == true
+		bars.Battery.BackgroundColor3 = if batteryFraction < 0.2 then COLORS.Warning else COLORS.Battery
+		batteryLabel.Text = if lightOn then "FLASHLIGHT (F) - ON" else "FLASHLIGHT (F) - OFF"
+
+		bars.Stamina.Size = UDim2.fromScale(math.clamp(ClientState.Stamina / Config.Player.MaxStamina, 0, 1), 1)
+
+		-- Edge glow: damage flash (red) beats danger pulse (dark violet).
+		damageFlash = math.max(0, damageFlash - dt * 1.6)
+		pulse += dt * (2 + ClientState.Danger * 4)
+		local danger = ClientState.Danger * (0.6 + 0.4 * math.sin(pulse))
+		local lowHealth = if healthFraction > 0 and healthFraction < 0.35 then 0.35 else 0
+		local strength = math.max(damageFlash, danger * 0.7, lowHealth)
+		local color = if damageFlash > danger * 0.7 or lowHealth > danger * 0.7
+			then COLORS.Health
+			else Color3.fromRGB(70, 20, 90)
+		for _, edge in edges do
+			edge.Visible = strength > 0.02
+			edge.BackgroundColor3 = color
+			edge.BackgroundTransparency = 1 - strength * 0.8
+		end
+	end)
+end
+
+return HUDController
+]]></string>
+            </Properties>
+          </Item>
+          <Item class="ModuleScript" referent="48">
+            <Properties>
+              <string name="Name">MovementController</string>
+              <string name="Source"><![CDATA[--!strict
+-- MovementController: sprint (hold Shift), crouch (press C), and stamina.
+-- On touch screens, on-screen buttons are added for both.
+--
+-- Movement speed is applied on the client because Roblox characters are
+-- physically simulated by their own player. The server listens for noise
+-- (how fast you move) when deciding if the Hollow hears you.
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local ContextActionService = game:GetService("ContextActionService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+local ClientState = require(script.Parent.Parent.ClientState)
+
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local player = Players.LocalPlayer
+local P = Config.Player
+
+local MovementController = {}
+
+local sprintHeld = false
+local exhausted = false
+local humanoid: Humanoid? = nil
+
+local function setCrouch(on: boolean)
+	if ClientState.Crouching == on then
+		return
+	end
+	ClientState.Crouching = on
+	Remotes.SetCrouch:FireServer(on)
+	if humanoid then
+		TweenService:Create(humanoid, TweenInfo.new(0.25), {
+			CameraOffset = if on then Vector3.new(0, -1.6, 0) else Vector3.zero,
+		}):Play()
+	end
+end
+
+local function onSprint(_: string, inputState: Enum.UserInputState): Enum.ContextActionResult
+	if inputState == Enum.UserInputState.Begin then
+		sprintHeld = true
+		setCrouch(false)
+	elseif inputState == Enum.UserInputState.End or inputState == Enum.UserInputState.Cancel then
+		sprintHeld = false
+	end
+	return Enum.ContextActionResult.Sink
+end
+
+local function onCrouch(_: string, inputState: Enum.UserInputState): Enum.ContextActionResult
+	if inputState == Enum.UserInputState.Begin then
+		setCrouch(not ClientState.Crouching)
+	end
+	return Enum.ContextActionResult.Sink
+end
+
+local function onCharacter(character: Model)
+	humanoid = character:WaitForChild("Humanoid") :: Humanoid
+	ClientState.Stamina = P.MaxStamina
+	ClientState.Crouching = false
+	exhausted = false
+	Remotes.SetCrouch:FireServer(false)
+end
+
+function MovementController.Init()
+	ContextActionService:BindAction("RiftfallSprint", onSprint, true, Enum.KeyCode.LeftShift, Enum.KeyCode.ButtonL3)
+	ContextActionService:SetTitle("RiftfallSprint", "Sprint")
+	ContextActionService:SetPosition("RiftfallSprint", UDim2.new(1, -170, 1, -150))
+	ContextActionService:BindAction("RiftfallCrouch", onCrouch, true, Enum.KeyCode.C, Enum.KeyCode.ButtonB)
+	ContextActionService:SetTitle("RiftfallCrouch", "Crouch")
+	ContextActionService:SetPosition("RiftfallCrouch", UDim2.new(1, -230, 1, -90))
+
+	player.CharacterAdded:Connect(onCharacter)
+	if player.Character then
+		task.spawn(onCharacter, player.Character)
+	end
+
+	RunService.Heartbeat:Connect(function(dt)
+		local hum = humanoid
+		if not hum or hum.Health <= 0 then
+			return
+		end
+		local moving = hum.MoveDirection.Magnitude > 0.1
+		local sprinting = sprintHeld and moving and not exhausted and not ClientState.Crouching
+
+		if sprinting then
+			ClientState.Stamina = math.max(0, ClientState.Stamina - P.StaminaDrainPerSecond * dt)
+			if ClientState.Stamina <= 0 then
+				exhausted = true
+			end
+		else
+			ClientState.Stamina = math.min(P.MaxStamina, ClientState.Stamina + P.StaminaRegenPerSecond * dt)
+			if exhausted and ClientState.Stamina >= P.StaminaRecoverThreshold then
+				exhausted = false
+			end
+		end
+
+		if ClientState.Crouching then
+			hum.WalkSpeed = P.CrouchSpeed
+		elseif sprinting then
+			hum.WalkSpeed = P.SprintSpeed
+		else
+			hum.WalkSpeed = P.WalkSpeed
+		end
+	end)
+end
+
+return MovementController
+]]></string>
+            </Properties>
+          </Item>
+        </Item>
+        <Item class="LocalScript" referent="49">
+          <Properties>
+            <string name="Name">Main</string>
+            <string name="Source"><![CDATA[--!strict
+-- Main (client): starts every client controller. Runs once per player, from
+-- StarterPlayerScripts, and survives respawns.
+
+local Controllers = script.Parent.Controllers
+
+local HUDController = require(Controllers.HUDController)
+local MovementController = require(Controllers.MovementController)
+local FlashlightController = require(Controllers.FlashlightController)
+local AtmosphereController = require(Controllers.AtmosphereController)
+
+HUDController.Init()
+MovementController.Init()
+FlashlightController.Init()
+AtmosphereController.Init()
+
+print("[Riftfall] Client ready.")
+]]></string>
+          </Properties>
+        </Item>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="Workspace" referent="50">
+    <Properties>
+      <string name="Name">Workspace</string>
+      <bool name="NeedsPivotMigration">false</bool>
+    </Properties>
+  </Item>
+</roblox>
