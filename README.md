@@ -81,6 +81,23 @@ polished, modern look, each one can be replaced by a real 3D model (made in
 Blender, or a Creator Store / Marketplace model you own) **without touching
 any code**:
 
+**Easiest way: the Riftfall Asset Helper plugin** (`tools/studio/RiftfallAssetHelper.lua`).
+
+1. In Studio, open the **Plugins** tab and click **Plugins Folder**. Copy
+   `RiftfallAssetHelper.lua` into the folder that opens, then restart Studio.
+   A **Riftfall** toolbar now shows in the Plugins tab.
+2. Open the **Toolbox** (View tab > Toolbox), choose **Models**, search (for
+   example "jungle tree") and click a model. It appears in the world, selected.
+3. Click the matching Riftfall button (Tree, Fern, Arch, Broken Arch, Torch,
+   Tent, Crates, 4x4, Helicopter). The helper deletes any scripts inside it,
+   resizes it, and files it in the right place. Ctrl+Z undoes it.
+4. Press Play, then save (File > Save).
+
+Tip: pick lower-detail models for trees and ferns; the level uses over a
+hundred of each.
+
+**By hand** (what the helper does for you):
+
 1. In Studio, create a Folder named `RiftfallAssets` inside `ServerStorage`.
 2. Put a model inside it with one of these exact names. Its pivot should sit
    on the ground, and its front should face the model's "forward" (-Z).
