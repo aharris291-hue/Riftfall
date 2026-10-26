@@ -14,6 +14,7 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerStorage = game:GetService("ServerStorage")
 
 local CharacterDesigns = require(ReplicatedStorage.Shared.CharacterDesigns)
 local Outfitter = require(script.Parent.Parent.Util.Outfitter)
@@ -93,8 +94,32 @@ end
 type SpotRecord = { Spot: BasePart, Model: Model?, Phase: string }
 local spots: { SpotRecord } = {}
 
--- Builds a standing, posed R15 character for a design.
+-- A finished model for a story character, if one has been added in Studio
+-- at ServerStorage > RiftfallAssets > Characters > <design id>.
+local function libraryModel(design: CharacterDesigns.Design): Model?
+	local library = ServerStorage:FindFirstChild("RiftfallAssets")
+	local characters = library and library:FindFirstChild("Characters")
+	local model = characters and characters:FindFirstChild(design.Id)
+	if model and model:IsA("Model") and model:FindFirstChild("HumanoidRootPart") then
+		local copy = model:Clone()
+		copy:SetAttribute("CustomModel", true)
+		return copy
+	end
+	return nil
+end
+
+-- Builds a standing, posed R15 character for a design (or uses the
+-- finished model from the asset library).
 local function buildNPC(design: CharacterDesigns.Design): Model?
+	local custom = libraryModel(design)
+	if custom then
+		custom.Name = design.DisplayName
+		local humanoid = custom:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			humanoid.DisplayName = design.DisplayName .. " - " .. design.Title
+		end
+		return custom
+	end
 	local description = Instance.new("HumanoidDescription")
 	description.WidthScale = design.Width or 1
 	description.DepthScale = design.Width or 1

@@ -674,6 +674,11 @@ end
 -- Dresses `model` (an R15 rig) as the given design. Returns false if the rig
 -- is missing the parts needed.
 function Outfitter.Apply(model: Model, design: Design): boolean
+	-- A real, finished character model (for example a StarterCharacter made
+	-- in Blender) is marked CustomModel and is never dressed with parts.
+	if model:GetAttribute("CustomModel") == true then
+		return false
+	end
 	Outfitter.Clear(model)
 	-- Avatar clothing and accessories never belong on a designed character.
 	for _, child in model:GetChildren() do

@@ -2,6 +2,30 @@
 
 Feedback from play sessions, and what was done about each point. Newest first.
 
+## Round 3 — Adam, 2026-10-26: Chapter 1 environment concept
+
+Adam: "Use the following image to design the environment for the first
+world", then: the environment and characters "should not look like Roblox
+games but should instead be more polished like a modern, polished 3d
+rendered game".
+
+| Concept art | In game |
+|---|---|
+| Storm, rain, lightning | Existing rain; lightning now draws a visible bolt; heavy cloud cover, no moon or stars, greener colour grade |
+| Jungle floor | Smooth terrain with swaying grass, darker undergrowth patches and a mud trail (replaces the flat green slab); ferns everywhere |
+| Trees | Taller trees with buttress roots, moss bands, layered canopy and hanging vines |
+| Moss-covered arches wrapped in roots | Four carved stone arches (two broken), mossy and root-wrapped, at the ruins gate, the temple approach and the courtyard sides; roots and moss on every pillar |
+| Stone stairs toward the cliffs | Torch-lit stairs climbing out of the ruins on both sides |
+| Temple | Stepped ziggurat tiers, moss, roots pouring over the front |
+| Crashed helicopter | Rebuilt: tipped on its side, snapped rotor blades, bent tail boom, moss and vines, still smouldering |
+| Muddy camp with tents, crates, overgrown 4x4s with headlights on, torches | Mud ground with puddles, A-frame tents (one torn), equipment cases, two rusted 4x4s with working headlights, four torches; a third 4x4 lights the trail from the crash site |
+| Cliffs and mountain | Mossy terrain cliffs on both sides and a mountain to the north |
+| Modern look | Future lighting (torches and headlights cast real light and shadow), bloom, light depth of field |
+
+Honest limit: shapes built in code can't reach a "modern AAA" look on their
+own. Every placeholder now has a slot so a real 3D model can replace it with
+no code changes (README, "Swapping in real 3D models").
+
 ## Round 2 — Adam, 2026-10-26: character concept sheet
 
 Adam: "Use this to redesign the characters for the game" (sheet: *Riftfall

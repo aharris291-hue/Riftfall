@@ -138,6 +138,7 @@ local services = {
 	},
 	Lighting = game:GetService("Lighting"),
 	SoundService = game:GetService("SoundService"),
+	ServerStorage = game:GetService("ServerStorage"),
 	Debris = { AddItem = function() end },
 }
 local fakeGame = {

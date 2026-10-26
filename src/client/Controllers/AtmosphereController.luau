@@ -69,7 +69,41 @@ local function createRain(): ParticleEmitter
 	return rain
 end
 
+-- A jagged bolt in the sky, briefly visible during a flash.
+local function drawBolt()
+	local camera = workspace.CurrentCamera
+	if not camera then
+		return
+	end
+	local look = camera.CFrame.LookVector
+	local flat = Vector3.new(look.X, 0, look.Z).Unit
+	local side = Vector3.new(-flat.Z, 0, flat.X)
+	local point = camera.CFrame.Position + flat * 170 + side * rng:NextNumber(-90, 90) + Vector3.new(0, 150, 0)
+	local folder = Instance.new("Folder")
+	folder.Name = "LightningBolt"
+	while point.Y > 30 do
+		local nextPoint = point + Vector3.new(rng:NextNumber(-10, 10), -rng:NextNumber(14, 24), rng:NextNumber(-10, 10))
+		local segment = Instance.new("Part")
+		segment.Anchored = true
+		segment.CanCollide = false
+		segment.CanQuery = false
+		segment.CanTouch = false
+		segment.CastShadow = false
+		segment.Material = Enum.Material.Neon
+		segment.Color = Color3.fromRGB(210, 220, 255)
+		segment.Size = Vector3.new(0.9, 0.9, (nextPoint - point).Magnitude)
+		segment.CFrame = CFrame.lookAt((point + nextPoint) / 2, nextPoint)
+		segment.Parent = folder
+		point = nextPoint
+	end
+	folder.Parent = camera
+	task.delay(0.22, function()
+		folder:Destroy()
+	end)
+end
+
 local function flashLightning()
+	drawBolt()
 	local original = Lighting.OutdoorAmbient
 	local originalBrightness = Lighting.Brightness
 	for _ = 1, rng:NextInteger(1, 2) do

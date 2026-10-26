@@ -120,6 +120,11 @@ block on questions. These are the ones made for the demo:
 5. **Placeholder art.** Everything is built from basic parts, including the
    character outfits (welded parts on R15 bodies). No asset IDs are used; the
    IDs on the concept sheet are examples. Real meshes can replace the parts.
+12. **Visual target.** Adam's standing rule: it must look like a modern,
+    polished 3D game, not a typical Roblox game. Code can supply terrain,
+    lighting, post-processing and layout; final-quality trees, ruins,
+    vehicles and characters need real meshes, which drop into
+    `ServerStorage > RiftfallAssets` without code changes.
 11. **Concept sheet vs master prompt.** Where they differ the master prompt
     wins: the sheet's "catastrophic experiment / alien powers" backstory is
     not in the demo (no powers for Jax); it is noted as a possible later hook.

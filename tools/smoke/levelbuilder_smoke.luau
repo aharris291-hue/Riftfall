@@ -51,8 +51,20 @@ local configChunk = luau.load(fs.readFile(repo .. "/src/shared/Config.luau"), {
 })
 local Config = configChunk()
 
-local env = {
+local env
+local modules = {}
+local function loadModule(path)
+	if not modules[path] then
+		local chunk = luau.load(fs.readFile(repo .. path), { debugName = path, environment = env })
+		modules[path] = chunk()
+	end
+	return modules[path]
+end
+env = {
 	require = function(target)
+		if target == "SceneryKit" then
+			return loadModule("/src/server/Util/SceneryKit.luau")
+		end
 		assert(target == "Config", "unexpected require")
 		return Config
 	end,
@@ -81,7 +93,7 @@ local env = {
 	pcall = pcall,
 	select = select,
 	setmetatable = setmetatable,
-	script = {},
+	script = { Parent = { Parent = { Util = { SceneryKit = "SceneryKit" } } } },
 }
 
 local chunk = luau.load(source, { debugName = "LevelBuilder", environment = env })
@@ -119,5 +131,7 @@ print("levels after rebuild", count)
 LevelBuilder.SpawnPickup("Battery", "Battery", roblox.Vector3.new(0, 1, 0), roblox.Color3.new(1, 1, 1))
 print("dropped folder", workspace.RiftfallLevel:FindFirstChild("Dropped") ~= nil)
 
-fs.writeFile(process.args[2], roblox.serializePlace(game, true))
-print("wrote", process.args[2])
+if process.args[2] then
+	fs.writeFile(process.args[2], roblox.serializePlace(game, true))
+	print("wrote", process.args[2])
+end

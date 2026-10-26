@@ -17,12 +17,18 @@
 --   Z  430 .. 460  Cliff (ladder truss up to Y 24)
 --   Z  460 .. 510  Rope bridge over a chasm
 --   Z  510 .. 545  Flare landing zone (end of demo)
+--
+-- Set dressing follows the "Chapter 1 environment" concept art (storm
+-- jungle, root-wrapped stone arches, muddy camp with overgrown 4x4s, the
+-- crashed helicopter, torches, cliffs and a mountain). The visual pieces are
+-- built by Util/SceneryKit; this file decides where they go.
 
 local CollectionService = game:GetService("CollectionService")
 local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local SceneryKit = require(script.Parent.Parent.Util.SceneryKit)
 
 local LevelBuilder = {}
 
@@ -31,6 +37,8 @@ local LEVEL_NAME = "RiftfallLevel"
 type PartProps = { [string]: any }
 
 local currentLevel: Folder? = nil
+-- Smooth terrain is static, so it is filled on the first build only.
+local terrainFilled = false
 
 -- Creates an anchored part with sensible defaults, applying any overrides.
 local function makePart(parent: Instance, props: PartProps): Part
@@ -114,33 +122,7 @@ end
 ------------------------------------------------------------------------------
 
 local function makeTree(parent: Instance, position: Vector3, rng: Random)
-	local height = rng:NextNumber(18, 32)
-	local radius = rng:NextNumber(1.4, 2.8)
-	local model = Instance.new("Model")
-	model.Name = "Tree"
-	makePart(model, {
-		Name = "Trunk",
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(height, radius * 2, radius * 2),
-		CFrame = CFrame.new(position + Vector3.new(0, height / 2, 0)) * CFrame.Angles(0, 0, math.rad(90)),
-		Material = Enum.Material.Wood,
-		Color = Color3.fromRGB(58, 44, 34),
-	})
-	for i = 1, 2 do
-		local size = rng:NextNumber(10, 16)
-		makePart(model, {
-			Name = "Canopy",
-			Shape = Enum.PartType.Ball,
-			Size = Vector3.new(size, size, size),
-			Position = position + Vector3.new(rng:NextNumber(-3, 3), height - 2 + i * 3, rng:NextNumber(-3, 3)),
-			Material = Enum.Material.LeafyGrass,
-			Color = Color3.fromRGB(28, 52 + rng:NextInteger(0, 20), 30),
-			CanCollide = false,
-			CanQuery = false,
-			CastShadow = false,
-		})
-	end
-	model.Parent = parent
+	SceneryKit.Tree(parent, position, rng)
 end
 
 local function makeRock(parent: Instance, position: Vector3, size: Vector3, rng: Random)
@@ -306,31 +288,8 @@ local function trailCenterX(z: number): number
 	return math.sin(z / 28) * 9
 end
 
-local function buildGroundAndBounds(level: Folder)
-	local ground = Instance.new("Folder")
-	ground.Name = "Ground"
-	ground.Parent = level
-
-	makePart(ground, {
-		Name = "JungleFloor",
-		Size = Vector3.new(130, 2, 465),
-		Position = Vector3.new(0, -1, 212.5),
-		Material = Enum.Material.Grass,
-		Color = Color3.fromRGB(46, 66, 38),
-	})
-	-- Dirt trail segments that follow trailCenterX.
-	for z = -10, 205, 10 do
-		makePart(ground, {
-			Name = "Trail",
-			Size = Vector3.new(9, 0.2, 11),
-			CFrame = CFrame.new(trailCenterX(z), 0.05, z) * CFrame.Angles(0, math.atan(math.cos(z / 28) * 9 / 28), 0),
-			Material = Enum.Material.Mud,
-			Color = Color3.fromRGB(78, 62, 46),
-			CanCollide = false,
-		})
-	end
-
-	-- Invisible boundary walls so players cannot walk off the map.
+-- Invisible boundary walls so players cannot walk off the map.
+local function buildBounds(ground: Folder)
 	local boundary = Color3.new(0, 0, 0)
 	makeWall(
 		ground,
@@ -356,6 +315,38 @@ local function buildGroundAndBounds(level: Folder)
 		1
 	)
 	makeWall(ground, Vector3.new(27, 0, 300), Vector3.new(65, 0, 300), 60, 2, Enum.Material.SmoothPlastic, boundary, 1)
+end
+
+local function buildGroundAndBounds(level: Folder)
+	local ground = Instance.new("Folder")
+	ground.Name = "Ground"
+	ground.Parent = level
+
+	-- In Roblox the ground is smooth terrain (see buildTerrain); the flat
+	-- floor and trail parts are only the fallback for the offline tests.
+	if SceneryKit.Terrain then
+		buildBounds(ground)
+		return
+	end
+	makePart(ground, {
+		Name = "JungleFloor",
+		Size = Vector3.new(130, 2, 465),
+		Position = Vector3.new(0, -1, 212.5),
+		Material = Enum.Material.Grass,
+		Color = Color3.fromRGB(46, 66, 38),
+	})
+	-- Dirt trail segments that follow trailCenterX.
+	for z = -10, 205, 10 do
+		makePart(ground, {
+			Name = "Trail",
+			Size = Vector3.new(9, 0.2, 11),
+			CFrame = CFrame.new(trailCenterX(z), 0.05, z) * CFrame.Angles(0, math.atan(math.cos(z / 28) * 9 / 28), 0),
+			Material = Enum.Material.Mud,
+			Color = Color3.fromRGB(78, 62, 46),
+			CanCollide = false,
+		})
+	end
+	buildBounds(ground)
 end
 
 local function buildJungle(level: Folder, rng: Random)
@@ -398,6 +389,19 @@ local function buildJungle(level: Folder, rng: Random)
 		makeTree(jungle, Vector3.new(-58 + rng:NextNumber(-2, 2), 0, z), rng)
 		makeTree(jungle, Vector3.new(58 + rng:NextNumber(-2, 2), 0, z), rng)
 	end
+	-- Ferns carpet the jungle floor, thickest along the trail edges.
+	local ferns = 0
+	attempts = 0
+	while ferns < 110 and attempts < 1500 do
+		attempts += 1
+		local z = rng:NextNumber(-15, 210)
+		local side = if rng:NextNumber() < 0.5 then -1 else 1
+		local x = trailCenterX(z) + side * rng:NextNumber(6, 40)
+		if math.abs(x) < 62 and not ((Vector2.new(x, z) - Vector2.new(0, 185)).Magnitude < 22) then
+			SceneryKit.Fern(jungle, Vector3.new(x, 0, z), rng)
+			ferns += 1
+		end
+	end
 	-- Scattered bushes of tall grass along the trail edges (also hideable).
 	makeGrassPatch(jungle, Vector3.new(trailCenterX(120) + 8, 0, 120), Vector2.new(6, 8), rng)
 	makeGrassPatch(jungle, Vector3.new(trailCenterX(80) - 8, 0, 80), Vector2.new(6, 8), rng)
@@ -419,37 +423,15 @@ local function buildCrashSite(level: Folder, rng: Random)
 	spawn.Color = Color3.fromRGB(60, 60, 64)
 	spawn.Parent = site
 
-	-- Wrecked helicopter (placeholder shapes).
-	local wreck = Instance.new("Model")
-	wreck.Name = "HelicopterWreck"
-	local hull = Color3.fromRGB(70, 78, 70)
-	makePart(wreck, {
-		Name = "Body",
-		Size = Vector3.new(9, 7, 16),
-		CFrame = CFrame.new(-14, 3, 16) * CFrame.Angles(0, math.rad(25), math.rad(18)),
-		Material = Enum.Material.CorrodedMetal,
-		Color = hull,
-	})
-	makePart(wreck, {
-		Name = "Tail",
-		Size = Vector3.new(2, 2, 14),
-		CFrame = CFrame.new(-19, 2, 30) * CFrame.Angles(math.rad(-8), math.rad(40), 0),
-		Material = Enum.Material.CorrodedMetal,
-		Color = hull,
-	})
-	makePart(wreck, {
-		Name = "Rotor",
-		Size = Vector3.new(26, 0.3, 1.2),
-		CFrame = CFrame.new(-8, 0.4, 8) * CFrame.Angles(0, math.rad(60), math.rad(4)),
-		Material = Enum.Material.Metal,
-		Color = Color3.fromRGB(40, 40, 40),
-	})
-	local fireSource = makePart(wreck, {
+	-- The crashed helicopter, still smouldering.
+	local firePoint = SceneryKit.Helicopter(site, CFrame.new(-15, 0, 18) * CFrame.Angles(0, math.rad(25), 0), rng)
+	local fireSource = makePart(site, {
 		Name = "FireSource",
 		Size = Vector3.new(2, 1, 2),
-		Position = Vector3.new(-13, 5.5, 18),
+		Position = firePoint + Vector3.new(1, 0, -2),
 		Transparency = 1,
 		CanCollide = false,
+		CanQuery = false,
 	})
 	local fire = Instance.new("Fire")
 	fire.Size = 6
@@ -462,7 +444,12 @@ local function buildCrashSite(level: Folder, rng: Random)
 	smoke.Color = Color3.fromRGB(40, 40, 40)
 	smoke.Parent = fireSource
 	addLight(fireSource, Color3.fromRGB(255, 140, 60), 30, 2)
-	wreck.Parent = site
+
+	-- An abandoned expedition 4x4, headlights still on, lighting the way
+	-- into the jungle.
+	SceneryKit.Truck(site, CFrame.lookAt(Vector3.new(17, 0, 24), Vector3.new(9, 0, 56)), rng)
+	SceneryKit.MudPatch(site, Vector3.new(4, 0, 18), Vector2.new(26, 22), rng)
+	SceneryKit.Torch(site, Vector3.new(-3, 0, 30))
 
 	-- Supply crates.
 	for i, pos in { Vector3.new(8, 1.5, 14), Vector3.new(11, 1.5, 18), Vector3.new(9, 4.5, 15) } do
@@ -551,24 +538,30 @@ local function buildCamp(level: Folder, rng: Random)
 	camp.Name = "Camp"
 	camp.Parent = level
 
-	local tentColor = Color3.fromRGB(96, 104, 70)
-	for _, t in { { -12, 178, 30 }, { 12, 192, -40 }, { -9, 198, 160 } } do
-		makePart(camp, {
-			Name = "Tent",
-			Size = Vector3.new(8, 5, 8),
-			CFrame = CFrame.new(t[1], 2.5, t[2]) * CFrame.Angles(0, math.rad(t[3]), 0),
-			Shape = Enum.PartType.Block,
-			Material = Enum.Material.Fabric,
-			Color = tentColor,
-		})
-		makePart(camp, {
-			Name = "TentRoof",
-			Size = Vector3.new(8.4, 4, 8.4),
-			CFrame = CFrame.new(t[1], 6, t[2]) * CFrame.Angles(0, math.rad(t[3] + 45), 0) * CFrame.Angles(0, 0, 0),
-			Material = Enum.Material.Fabric,
-			Color = tentColor:Lerp(Color3.new(0, 0, 0), 0.2),
-			Shape = Enum.PartType.Block,
-		})
+	-- Muddy ground churned up by boots and tyres.
+	SceneryKit.MudPatch(camp, Vector3.new(0, 0, 186), Vector2.new(44, 38), rng)
+
+	-- A-frame tents (one torn open), facing the campfire.
+	local fireSpot = Vector3.new(2, 0, 186)
+	for i, t in { { -12, 178 }, { 12, 194 }, { -9, 199 } } do
+		local pos = Vector3.new(t[1], 0, t[2])
+		SceneryKit.Tent(camp, CFrame.lookAt(pos, fireSpot), SceneryKit.Colors.Canvas, i == 2)
+	end
+
+	-- Two overgrown 4x4s parked at the edges, headlights on.
+	SceneryKit.Truck(camp, CFrame.lookAt(Vector3.new(-22, 0, 201), Vector3.new(-2, 0, 184)), rng)
+	SceneryKit.Truck(camp, CFrame.lookAt(Vector3.new(21, 0, 176), Vector3.new(2, 0, 190)), rng)
+
+	-- Equipment cases and crates.
+	SceneryKit.Cases(camp, CFrame.new(-16, 0, 172) * CFrame.Angles(0, 0.4, 0), rng)
+	SceneryKit.Cases(camp, CFrame.new(14, 0, 203) * CFrame.Angles(0, -0.3, 0), rng)
+	SceneryKit.Cases(camp, CFrame.new(-2, 0, 204) * CFrame.Angles(0, 0.1, 0), rng)
+
+	-- Torches around the camp keep it readable at night.
+	for _, pos in
+		{ Vector3.new(-7, 0, 168), Vector3.new(10, 0, 168), Vector3.new(-18, 0, 190), Vector3.new(17, 0, 196) }
+	do
+		SceneryKit.Torch(camp, pos)
 	end
 
 	-- Campfire (cold ashes with a dim ember glow).
@@ -660,13 +653,52 @@ local function buildRuins(level: Folder, rng: Random)
 	}
 	for _, pos in pillarSpots do
 		local h = rng:NextNumber(6, 16)
-		makePart(ruins, {
+		local pillar = makePart(ruins, {
 			Name = "Pillar",
 			Size = Vector3.new(4, h, 4),
 			Position = pos + Vector3.new(0, h / 2, 0),
 			Material = Enum.Material.Slate,
 			Color = stone,
 		})
+		SceneryKit.MossCap(ruins, pillar)
+		SceneryKit.DrapeRoots(ruins, pos + Vector3.new(0, h, 0), 0.4, rng:NextInteger(1, 3), rng)
+	end
+
+	-- Moss-covered stone archways strangled by roots: a great gate where the
+	-- trail enters the ruins, one framing the temple doorway, and broken
+	-- arches along the sides.
+	SceneryKit.Arch(ruins, CFrame.new(4, 0.4, 214), { Width = 18, Height = 12, Rng = rng })
+	SceneryKit.Arch(ruins, CFrame.new(0, 0.4, 294), { Width = 14, Height = 11, Rng = rng })
+	SceneryKit.Arch(
+		ruins,
+		CFrame.new(-46, 0.4, 262) * CFrame.Angles(0, math.rad(90), 0),
+		{ Width = 13, Height = 10, Broken = true, Rng = rng }
+	)
+	SceneryKit.Arch(
+		ruins,
+		CFrame.new(46, 0.4, 245) * CFrame.Angles(0, math.rad(90), 0),
+		{ Width = 13, Height = 9, Broken = true, Rng = rng }
+	)
+	for _, pos in
+		{ Vector3.new(-9, 0.4, 211), Vector3.new(17, 0.4, 211), Vector3.new(-12, 0.4, 291), Vector3.new(12, 0.4, 291) }
+	do
+		SceneryKit.Torch(ruins, pos)
+	end
+	for _ = 1, 18 do
+		SceneryKit.Fern(ruins, Vector3.new(rng:NextNumber(-44, 44), 0.4, rng:NextNumber(216, 296)), rng)
+	end
+
+	-- Ancient stairs climbing out of the valley toward the cliffs (scenery,
+	-- beyond the boundary).
+	for _, side in { -1, 1 } do
+		local foot = Vector3.new(side * 68, 0, 262)
+		SceneryKit.Stairs(ruins, CFrame.lookAt(foot, foot + Vector3.new(side, 0, 0)), 18, 9, rng)
+		-- Torches stand on the stair edge, on top of the step below them.
+		for i = 0, 2 do
+			local along = 2 + i * 12
+			local stepTop = math.floor(along / 1.8) + 1
+			SceneryKit.Torch(ruins, foot + Vector3.new(side * along, stepTop, 3.8), 4)
+		end
 	end
 	-- Low crumbling walls.
 	makeWall(ruins, Vector3.new(-22, 0, 246), Vector3.new(-8, 0, 250), 4, 2, Enum.Material.Slate, stone)
@@ -745,6 +777,23 @@ local function buildTemple(level: Folder)
 		Material = mat,
 		Color = stone,
 	})
+	-- Stepped upper tiers make the temple read as an ancient ziggurat, with
+	-- roots and moss pouring over it.
+	for i, size in { Vector3.new(46, 6, 52), Vector3.new(34, 6, 40), Vector3.new(20, 5, 26) } do
+		local tier = makePart(temple, {
+			Name = "Tier" .. i,
+			Size = size,
+			Position = Vector3.new(0, height + 3 + (i - 0.5) * 6 - (if i == 3 then 0.5 else 0), 332),
+			Material = mat,
+			Color = stone,
+		})
+		SceneryKit.MossCap(temple, tier)
+	end
+	local rootRng = Random.new(42)
+	for _, x in { -22, -12, 12, 22 } do
+		SceneryKit.DrapeRoots(temple, Vector3.new(x, height + 2, 299), 0.4, 2, rootRng)
+	end
+
 	-- Side walls.
 	makePart(temple, {
 		Name = "WallWest",
@@ -1161,6 +1210,46 @@ local function buildEscape(level: Folder, rng: Random)
 	})
 end
 
+-- Smooth terrain for the valley floor: real grass that sways, mud on the
+-- trail and in the camp, plain ground under the paved and indoor areas.
+-- Returns the terrain only on the build that should fill static shapes.
+local function buildTerrain(): Terrain?
+	local terrain = workspace:FindFirstChildOfClass("Terrain")
+	SceneryKit.Terrain = terrain
+	if not terrain or terrainFilled then
+		return nil
+	end
+	terrainFilled = true
+	SceneryKit.FillValley(terrain, Random.new(7))
+	for z = -10, 205, 6 do
+		SceneryKit.PaintGround(terrain, Vector3.new(trailCenterX(z), 0, z), Vector2.new(8, 6), Enum.Material.Mud)
+	end
+	-- No grass blades poking through the courtyard, temple or tunnel floors.
+	for _, area in { { 0, 257, 92, 88 }, { 0, 330, 54, 64 }, { 0, 400, 32, 92 } } do
+		SceneryKit.PaintGround(
+			terrain,
+			Vector3.new(area[1], 0, area[2]),
+			Vector2.new(area[3], area[4]),
+			Enum.Material.Ground
+		)
+	end
+	return terrain
+end
+
+-- Cliffs on both sides of the valley and the mountain to the north. All of
+-- it is outside the playable area. Uses its own random seed so cliff-top
+-- trees match the rock on every rebuild.
+local function buildBackdrop(level: Folder, terrain: Terrain?)
+	local rng = Random.new(99)
+	local backdrop = Instance.new("Folder")
+	backdrop.Name = "Backdrop"
+	backdrop.Parent = level
+	SceneryKit.CliffLine(backdrop, Vector3.new(-88, 0, -70), Vector3.new(-80, 0, 600), rng, terrain)
+	SceneryKit.CliffLine(backdrop, Vector3.new(84, 0, -70), Vector3.new(92, 0, 600), rng, terrain)
+	SceneryKit.CliffLine(backdrop, Vector3.new(-90, 0, -48), Vector3.new(90, 0, -48), rng, terrain)
+	SceneryKit.Mountain(backdrop, Vector3.new(10, 0, 680), terrain)
+end
+
 ------------------------------------------------------------------------------
 -- Lighting
 ------------------------------------------------------------------------------
@@ -1189,8 +1278,36 @@ function LevelBuilder.SetupLighting()
 	grade.Saturation = -0.15
 	grade.Contrast = 0.08
 	grade.Brightness = 0.03
-	grade.TintColor = Color3.fromRGB(225, 236, 240)
+	grade.TintColor = Color3.fromRGB(222, 238, 232)
 	grade.Parent = Lighting
+
+	-- Modern post-processing: soft glow on torches, headlights and neon,
+	-- and a gentle depth haze on far scenery.
+	local bloom = Lighting:FindFirstChildOfClass("BloomEffect") or Instance.new("BloomEffect")
+	bloom.Intensity = 0.7
+	bloom.Size = 28
+	bloom.Threshold = 1.4
+	bloom.Parent = Lighting
+	local depth = Lighting:FindFirstChildOfClass("DepthOfFieldEffect") or Instance.new("DepthOfFieldEffect")
+	depth.FarIntensity = 0.18
+	depth.FocusDistance = 30
+	depth.InFocusRadius = 60
+	depth.NearIntensity = 0
+	depth.Parent = Lighting
+
+	-- Storm sky: no moon or stars behind the clouds.
+	local sky = Lighting:FindFirstChildOfClass("Sky") or Instance.new("Sky")
+	sky.CelestialBodiesShown = false
+	sky.StarCount = 0
+	sky.Parent = Lighting
+	local terrain = workspace:FindFirstChildOfClass("Terrain")
+	if terrain then
+		local clouds = terrain:FindFirstChildOfClass("Clouds") or Instance.new("Clouds")
+		clouds.Cover = 0.85
+		clouds.Density = 0.7
+		clouds.Color = Color3.fromRGB(70, 78, 84)
+		clouds.Parent = terrain
+	end
 end
 
 ------------------------------------------------------------------------------
@@ -1207,6 +1324,7 @@ function LevelBuilder.Build(): Folder
 	local rng = Random.new(1337)
 	local level = Instance.new("Folder")
 	level.Name = LEVEL_NAME
+	local freshTerrain = buildTerrain()
 
 	buildGroundAndBounds(level)
 	buildJungle(level, rng)
@@ -1216,6 +1334,7 @@ function LevelBuilder.Build(): Folder
 	buildRuins(level, rng)
 	buildTemple(level)
 	buildEscape(level, rng)
+	buildBackdrop(level, freshTerrain)
 
 	-- Parent last: one replication burst instead of thousands of small ones.
 	level.Parent = workspace

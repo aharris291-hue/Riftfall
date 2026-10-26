@@ -129,3 +129,17 @@ attribute shows what it is doing.
 | H6 | Enter the temple | Lira (white lab coat, glasses, bun) is there; **Talk** helps with the mural |
 | H7 | Reach the rescue flare | Kade and Lira are waiting there; their camp/temple copies are gone |
 | H8 | Watch the creature for 10 seconds | Violet with glowing crystal spines; it briefly flickers (phases) every few seconds |
+
+## I. Environment (concept art redesign)
+
+| # | Do this | Expected |
+|---|---|---|
+| I1 | Spawn and look around | Smooth grassy ground with swaying grass blades; the crashed helicopter on its side, smoking; a rusted 4x4 with headlights lighting the trail |
+| I2 | Walk the trail | Mud path, ferns, vines hanging from trees; cliffs visible above the canopy on both sides |
+| I3 | Reach the camp | Mud and puddles, A-frame tents (one torn), crates, two 4x4s with headlights on, torches burning |
+| I4 | Enter the ruins | Walk through a big root-wrapped stone arch; broken arches at the sides; torch-lit stairs climbing away on both sides |
+| I5 | Look at the temple | Stepped tiers on top, roots and moss over the front, an arch framing the doorway |
+| I6 | Wait for lightning | A bright jagged bolt flashes in the sky |
+| I7 | Watch the Stalker walk on grass and through the arches | It still patrols and chases normally (terrain does not block its path) |
+| I8 | Play Again at the end | The level rebuilds with no duplicate cliffs or floating trees |
+| I9 | Add a model named `JungleTree` to `ServerStorage > RiftfallAssets` and press Play | Every tree is now that model |

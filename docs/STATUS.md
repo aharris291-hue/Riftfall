@@ -65,8 +65,10 @@ cloud development environment. Treat everything as untested until it passes
 
 | Asset | Current | To replace |
 |---|---|---|
-| All environment art | Basic parts generated in `LevelBuilder.luau` | Model in Studio or import meshes, then load them from `ServerStorage` |
-| Characters (Jax, Serra, Kade, Lira, Corrupted Soldier) | Part-built outfits: data in `src/shared/CharacterDesigns.luau`, built by `src/server/Util/Outfitter.luau` | Layered clothing or mesh accessories you own |
+| Ground, cliffs, mountain | Smooth terrain (swaying grass, mud, rock) filled by `LevelBuilder`/`SceneryKit` | Can stay; optionally hand-sculpt in Studio |
+| Trees, ferns, arches, torches, tents, cases, 4x4s, helicopter | Part-built placeholders in `src/server/Util/SceneryKit.luau` | Real meshes dropped into `ServerStorage > RiftfallAssets` (see README, "Swapping in real 3D models") |
+| Other environment pieces (temple, tunnel, bridge, pillars) | Basic parts in `LevelBuilder.luau` | Real meshes; needs a small code change per piece |
+| Characters (Jax, Serra, Kade, Lira, Corrupted Soldier) | Story characters can use a finished model from `ServerStorage > RiftfallAssets > Characters`; otherwise part-built outfits: data in `src/shared/CharacterDesigns.luau`, built by `src/server/Util/Outfitter.luau` | Layered clothing or mesh accessories you own |
 | The Rift Stalker | Part-built stand-in (crystal spines, plates, claws) in `StalkerService.buildModel` | Any model with a `Humanoid` and `HumanoidRootPart` |
 | Sounds | Empty IDs in `Config.Sounds` | Paste `rbxassetid://...` IDs you are allowed to use |
 | Animations | None (default Roblox avatar animations only) | Upload animations you own and play them from the client |
