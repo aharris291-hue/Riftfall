@@ -72,7 +72,13 @@
         "LoadCharacterAppearance": false
       }
     },
-    "Workspace": {},
+    "Workspace": {
+      "Terrain": {
+        "$properties": {
+          "Decoration": true
+        }
+      }
+    },
     "Lighting": {
       "$properties": {
         "Technology": "Future"

@@ -4,6 +4,13 @@ Feedback from play sessions, and what was done about each point. Newest first.
 
 ## Round 3 — Adam, 2026-10-26: Chapter 1 environment concept
 
+**Hotfix:** Adam reported falling forever on load. Cause: the terrain code
+set `Terrain.Decoration`, which scripts are not allowed to change, so the
+level build stopped before any ground existed. Fixed: that setting now lives
+in the place file; a failed terrain fill falls back to a part floor; scenery
+errors can no longer stop the level from loading; a new
+`tools/smoke/terrain_smoke.luau` checks every terrain call.
+
 Adam: "Use the following image to design the environment for the first
 world", then: the environment and characters "should not look like Roblox
 games but should instead be more polished like a modern, polished 3d

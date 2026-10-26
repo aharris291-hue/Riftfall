@@ -1234,13 +1234,7 @@ end
 -- Smooth terrain for the valley floor: real grass that sways, mud on the
 -- trail and in the camp, plain ground under the paved and indoor areas.
 -- Returns the terrain only on the build that should fill static shapes.
-local function buildTerrain(): Terrain?
-	local terrain = workspace:FindFirstChildOfClass("Terrain")
-	SceneryKit.Terrain = terrain
-	if not terrain or terrainFilled then
-		return nil
-	end
-	terrainFilled = true
+local function fillTerrain(terrain: Terrain)
 	SceneryKit.FillValley(terrain, Random.new(7))
 	for z = -10, 205, 6 do
 		SceneryKit.PaintGround(terrain, Vector3.new(trailCenterX(z), 0, z), Vector2.new(8, 6), Enum.Material.Mud)
@@ -1254,6 +1248,29 @@ local function buildTerrain(): Terrain?
 			Enum.Material.Ground
 		)
 	end
+end
+
+-- If filling the terrain ever fails, the level falls back to a part floor
+-- instead of leaving players to fall forever.
+local function buildTerrain(): Terrain?
+	local terrain = workspace:FindFirstChildOfClass("Terrain")
+	if not terrain then
+		SceneryKit.Terrain = nil
+		return nil
+	end
+	if terrainFilled then
+		SceneryKit.Terrain = terrain
+		return nil
+	end
+	local ok, err = pcall(fillTerrain, terrain)
+	if not ok then
+		warn("[LevelBuilder] Terrain fill failed, using a part floor instead:", err)
+		terrain:Clear()
+		SceneryKit.Terrain = nil
+		return nil
+	end
+	terrainFilled = true
+	SceneryKit.Terrain = terrain
 	return terrain
 end
 
@@ -1355,7 +1372,11 @@ function LevelBuilder.Build(): Folder
 	buildRuins(level, rng)
 	buildTemple(level)
 	buildEscape(level, rng)
-	buildBackdrop(level, freshTerrain)
+	-- Backdrop is scenery only: never let it stop the playable level loading.
+	local ok, err = pcall(buildBackdrop, level, freshTerrain)
+	if not ok then
+		warn("[LevelBuilder] Backdrop failed:", err)
+	end
 
 	-- Parent last: one replication burst instead of thousands of small ones.
 	level.Parent = workspace

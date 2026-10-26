@@ -780,9 +780,9 @@ function SceneryKit.PaintGround(terrain: Terrain, center: Vector3, size: Vector2
 end
 
 -- Fills the valley floor (top surface at Y = 0) and gives the materials
--- their storm-soaked colours. Swaying grass decoration is turned on.
+-- their storm-soaked colours. (Swaying grass blades are switched on in the
+-- place file: Terrain.Decoration can't be set from a script.)
 function SceneryKit.FillValley(terrain: Terrain, rng: Random)
-	terrain.Decoration = true
 	terrain:SetMaterialColor(Enum.Material.Grass, Color3.fromRGB(58, 82, 44))
 	terrain:SetMaterialColor(Enum.Material.LeafyGrass, Color3.fromRGB(50, 74, 40))
 	terrain:SetMaterialColor(Enum.Material.Mud, Color3.fromRGB(74, 58, 42))

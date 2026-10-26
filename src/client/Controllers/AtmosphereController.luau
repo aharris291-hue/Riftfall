@@ -76,6 +76,9 @@ local function drawBolt()
 		return
 	end
 	local look = camera.CFrame.LookVector
+	if math.abs(look.Y) > 0.98 then
+		return -- Looking straight up or down: no horizon to draw on.
+	end
 	local flat = Vector3.new(look.X, 0, look.Z).Unit
 	local side = Vector3.new(-flat.Z, 0, flat.X)
 	local point = camera.CFrame.Position + flat * 170 + side * rng:NextNumber(-90, 90) + Vector3.new(0, 150, 0)
