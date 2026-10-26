@@ -5025,7 +5025,8 @@ GEAR.WristDevice = function(ctx)
 		Color = ctx.Design.Accent,
 		Material = Enum.Material.Neon,
 	}, CFrame.new(-s.X * 0.6, -s.Y * 0.2, 0))
-	glow(screen, ctx.Design.Accent, 5, 1.2)
+	-- Range and strength from Adam's character script: a readable cyan glow.
+	glow(screen, ctx.Design.Accent, 8, 2)
 end
 
 GEAR.ChestPlate = function(ctx)
