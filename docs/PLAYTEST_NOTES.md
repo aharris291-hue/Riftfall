@@ -22,6 +22,20 @@ rendered game".
 | Cliffs and mountain | Mossy terrain cliffs on both sides and a mountain to the north |
 | Modern look | Future lighting (torches and headlights cast real light and shadow), bloom, light depth of field |
 
+**Adam's Chapter 1 lighting script** (command-bar script, merged in rather
+than run as-is, because it would replace the level):
+
+| From the script | Result |
+|---|---|
+| Contrast 0.15, saturation -0.3, cold blue tint | Kept (saturation -0.28); values in `Config.Lighting` |
+| Atmosphere offset 0.25 | Kept: cliffs and mountain show as silhouettes against the sky |
+| Bloom (size 24, lower threshold) | Kept, slightly stronger (intensity 0.5, threshold 1.0) so torches and headlights glow |
+| Lights with shadows | Kept for torches, the camp lantern (now range 25, brightness 2.5) and campfire |
+| Blue light at the ruin archway | Added as a cold blue Rift glow inside the temple arch |
+| Brightness 0.4, dark ambient, colour brightness -0.05, atmosphere density 0.55 / haze 2 | Not used: it would bring back the "too dark" problem from round 1 |
+| FogStart / FogEnd | Not used: Roblox ignores them when an Atmosphere exists |
+| Ground, camp platform, wreck, tent, arch blocks, spawn | Already covered by the redesigned level (terrain, 4x4s, tents, arches) |
+
 Honest limit: shapes built in code can't reach a "modern AAA" look on their
 own. Every placeholder now has a slot so a real 3D model can replace it with
 no code changes (README, "Swapping in real 3D models").

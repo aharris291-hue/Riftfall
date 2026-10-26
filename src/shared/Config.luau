@@ -78,6 +78,18 @@ Config.Lighting = {
 	OutdoorAmbient = Color3.fromRGB(96, 104, 118),
 	FogDensity = 0.3,
 	FogHaze = 1,
+	-- Colour grade (from Adam's Chapter 1 lighting script): more contrast,
+	-- less saturation and a cold blue tint give the stormy film look without
+	-- making the night darker.
+	Contrast = 0.15,
+	Saturation = -0.28,
+	Tint = Color3.fromRGB(225, 235, 255),
+	-- Lifts the mist toward the horizon so cliffs and the mountain read as
+	-- dark silhouettes against the storm sky.
+	AtmosphereOffset = 0.25,
+	BloomIntensity = 0.5,
+	BloomSize = 24,
+	BloomThreshold = 1.0,
 }
 
 Config.World = {

@@ -86,12 +86,20 @@ local function makePrompt(
 	return prompt
 end
 
-local function addLight(parent: Instance, color: Color3, range: number, brightness: number): PointLight
+-- Shadows are only worth it on the big warm light sources (they cost
+-- performance), so they are opt-in.
+local function addLight(
+	parent: Instance,
+	color: Color3,
+	range: number,
+	brightness: number,
+	shadows: boolean?
+): PointLight
 	local light = Instance.new("PointLight")
 	light.Color = color
 	light.Range = range
 	light.Brightness = brightness
-	light.Shadows = false
+	light.Shadows = shadows == true
 	light.Parent = parent
 	return light
 end
@@ -572,7 +580,7 @@ local function buildCamp(level: Folder, rng: Random)
 		Material = Enum.Material.Cobblestone,
 		Color = Color3.fromRGB(40, 36, 34),
 	})
-	addLight(fire, Color3.fromRGB(255, 90, 40), 14, 1.2)
+	addLight(fire, Color3.fromRGB(255, 90, 40), 14, 1.2, true)
 
 	local tableTop = makePart(camp, {
 		Name = "FieldTable",
@@ -604,7 +612,7 @@ local function buildCamp(level: Folder, rng: Random)
 		Material = Enum.Material.Neon,
 		Color = Color3.fromRGB(255, 200, 120),
 	})
-	addLight(lantern, Color3.fromRGB(255, 200, 120), 16, 1.2)
+	addLight(lantern, Color3.fromRGB(255, 170, 80), 25, 2.5, true)
 
 	makeNote(camp, "Journal", "Rourke's journal", tableTop.Position + Vector3.new(-1, 0.25, 0))
 	makePickup(camp, "Bandage", "Bandage", Vector3.new(12, 1, 184), Color3.fromRGB(230, 225, 210))
@@ -679,6 +687,19 @@ local function buildRuins(level: Folder, rng: Random)
 		CFrame.new(46, 0.4, 245) * CFrame.Angles(0, math.rad(90), 0),
 		{ Width = 13, Height = 9, Broken = true, Rng = rng }
 	)
+	-- A cold blue Rift glow hanging in the temple arch (from Adam's lighting
+	-- script): the first hint that something unnatural waits inside.
+	local riftGlow = makePart(ruins, {
+		Name = "RiftGlow",
+		Size = Vector3.new(1, 1, 1),
+		Position = Vector3.new(0, 8, 296),
+		Material = Enum.Material.Neon,
+		Color = Color3.fromRGB(100, 200, 255),
+		CanCollide = false,
+		CanQuery = false,
+		CastShadow = false,
+	})
+	addLight(riftGlow, Color3.fromRGB(80, 180, 255), 30, 1.5, true)
 	for _, pos in
 		{ Vector3.new(-9, 0.4, 211), Vector3.new(17, 0.4, 211), Vector3.new(-12, 0.4, 291), Vector3.new(12, 0.4, 291) }
 	do
@@ -1267,7 +1288,7 @@ function LevelBuilder.SetupLighting()
 
 	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere") or Instance.new("Atmosphere")
 	atmosphere.Density = L.FogDensity
-	atmosphere.Offset = 0.05
+	atmosphere.Offset = L.AtmosphereOffset
 	atmosphere.Color = Color3.fromRGB(80, 94, 96)
 	atmosphere.Decay = Color3.fromRGB(46, 54, 62)
 	atmosphere.Glare = 0
@@ -1275,18 +1296,18 @@ function LevelBuilder.SetupLighting()
 	atmosphere.Parent = Lighting
 
 	local grade = Lighting:FindFirstChildOfClass("ColorCorrectionEffect") or Instance.new("ColorCorrectionEffect")
-	grade.Saturation = -0.15
-	grade.Contrast = 0.08
+	grade.Saturation = L.Saturation
+	grade.Contrast = L.Contrast
 	grade.Brightness = 0.03
-	grade.TintColor = Color3.fromRGB(222, 238, 232)
+	grade.TintColor = L.Tint
 	grade.Parent = Lighting
 
 	-- Modern post-processing: soft glow on torches, headlights and neon,
 	-- and a gentle depth haze on far scenery.
 	local bloom = Lighting:FindFirstChildOfClass("BloomEffect") or Instance.new("BloomEffect")
-	bloom.Intensity = 0.7
-	bloom.Size = 28
-	bloom.Threshold = 1.4
+	bloom.Intensity = L.BloomIntensity
+	bloom.Size = L.BloomSize
+	bloom.Threshold = L.BloomThreshold
 	bloom.Parent = Lighting
 	local depth = Lighting:FindFirstChildOfClass("DepthOfFieldEffect") or Instance.new("DepthOfFieldEffect")
 	depth.FarIntensity = 0.18

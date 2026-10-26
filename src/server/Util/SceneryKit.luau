@@ -119,7 +119,9 @@ local function addPointLight(parent: Instance, color: Color3, range: number, bri
 	light.Color = color
 	light.Range = range
 	light.Brightness = brightness
-	light.Shadows = false
+	-- Torch fire casts soft shadows (with Future lighting) so roots and
+	-- arches throw moving silhouettes.
+	light.Shadows = true
 	light.Parent = parent
 end
 
