@@ -1,0 +1,89 @@
+{
+  "name": "Riftfall",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "Shared": {
+        "$path": "src/shared"
+      },
+      "Remotes": {
+        "$className": "Folder",
+        "UseItem": {
+          "$className": "RemoteEvent"
+        },
+        "DropItem": {
+          "$className": "RemoteEvent"
+        },
+        "ToggleFlashlight": {
+          "$className": "RemoteEvent"
+        },
+        "SetCrouch": {
+          "$className": "RemoteEvent"
+        },
+        "RequestReplay": {
+          "$className": "RemoteEvent"
+        },
+        "InventoryChanged": {
+          "$className": "RemoteEvent"
+        },
+        "Toast": {
+          "$className": "RemoteEvent"
+        },
+        "Dialogue": {
+          "$className": "RemoteEvent"
+        },
+        "ShowNote": {
+          "$className": "RemoteEvent"
+        },
+        "CameraShake": {
+          "$className": "RemoteEvent"
+        },
+        "RunComplete": {
+          "$className": "RemoteEvent"
+        }
+      }
+    },
+    "ServerScriptService": {
+      "Server": {
+        "$path": "src/server"
+      }
+    },
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "Client": {
+          "$path": "src/client"
+        }
+      },
+      "StarterCharacterScripts": {
+        "$className": "StarterCharacterScripts",
+        "$path": "src/character"
+      },
+      "$properties": {
+        "EnableMouseLockOption": false,
+        "CameraMaxZoomDistance": 18,
+        "CameraMinZoomDistance": 4,
+        "CharacterWalkSpeed": 12,
+        "CharacterJumpPower": 42,
+        "CharacterUseJumpPower": true
+      }
+    },
+    "Workspace": {},
+    "Lighting": {
+      "$properties": {
+        "Technology": "ShadowMap",
+        "ClockTime": 0.5,
+        "Brightness": 0.6,
+        "GlobalShadows": true
+      }
+    },
+    "Players": {
+      "$properties": {
+        "RespawnTime": 3,
+        "CharacterAutoLoads": true
+      }
+    },
+    "SoundService": {},
+    "ServerStorage": {}
+  }
+}

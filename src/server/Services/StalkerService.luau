@@ -1,0 +1,668 @@
+--!strict
+-- StalkerService: "the Hollow", the demo's one enemy (a Stalker-type hunter).
+--
+-- It runs a simple state machine on the server, a few times per second:
+--
+--   Patrol      walks a loop of patrol points in the ruins
+--   Investigate heard a noise: walks to where it came from and looks around
+--   Chase       sees a player: runs at them
+--   Attack      close enough: winds up (a visible tell) and then swings
+--   Search      lost sight: checks the last known position, then wanders
+--   Return      gives up and walks back to its patrol route
+--   Hunt        scripted escape sequence: pursues the nearest escaping player
+--   Idle        waits (before being released during the escape)
+--
+-- Fair-horror rules: it only knows where you are if it SEES you (in front of
+-- it, within range, with nothing blocking the view) or HEARS you (sprinting
+-- is loud, walking is quiet, crouching is nearly silent). Crouching inside
+-- tall grass hides you unless it is right next to you. A lit flashlight lets
+-- it see you from further away.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local PathfindingService = game:GetService("PathfindingService")
+local CollectionService = game:GetService("CollectionService")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+local Zones = require(script.Parent.Parent.Util.Zones)
+local PlayerData = require(script.Parent.Parent.Util.PlayerData)
+
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local C = Config.Stalker
+
+local StalkerService = {}
+
+type State = "Patrol" | "Investigate" | "Chase" | "Attack" | "Search" | "Return" | "Hunt" | "Idle"
+
+local model: Model? = nil
+local humanoid: Humanoid? = nil
+local root: BasePart? = nil
+local eyes: { BasePart } = {}
+
+local state: State = "Patrol"
+local stateStarted = 0
+local mode: "Explore" | "Hunt" = "Explore"
+local huntReleaseTime = 0
+
+local target: Player? = nil
+local lastSeenTime = 0
+local lastKnownPosition: Vector3? = nil
+local investigatePosition: Vector3? = nil
+local searchPoint: Vector3? = nil
+local lastAttackTime = 0
+local attackStarted = 0
+
+local patrolPoints: { Vector3 } = {}
+local patrolIndex = 1
+
+-- Pathfinding bookkeeping.
+local path = PathfindingService:CreatePath({
+	AgentRadius = 2.5,
+	AgentHeight = 9,
+	AgentCanJump = false,
+	AgentCanClimb = false,
+	WaypointSpacing = 6,
+})
+local waypoints: { PathWaypoint } = {}
+local waypointIndex = 1
+local pathGoal: Vector3? = nil
+local lastPathTime = 0
+local pathFailures = 0
+local lastProgressPosition = Vector3.zero
+local lastProgressTime = 0
+
+local rng = Random.new()
+
+------------------------------------------------------------------------------
+-- Model
+------------------------------------------------------------------------------
+
+-- Builds a tall, thin placeholder creature from parts. Replace with a real
+-- model later (keep a Humanoid and a HumanoidRootPart).
+local function buildModel(position: Vector3): Model
+	local m = Instance.new("Model")
+	m.Name = "Hollow"
+	local body = Color3.fromRGB(22, 20, 24)
+
+	local hrp = Instance.new("Part")
+	hrp.Name = "HumanoidRootPart"
+	hrp.Size = Vector3.new(2, 2, 1)
+	hrp.Transparency = 1
+	hrp.CanCollide = false
+	hrp.CFrame = CFrame.new(position)
+	hrp.Parent = m
+
+	local function limb(name: string, size: Vector3, offset: CFrame, color: Color3?, material: Enum.Material?): Part
+		local p = Instance.new("Part")
+		p.Name = name
+		p.Size = size
+		p.CFrame = hrp.CFrame * offset
+		p.Color = color or body
+		p.Material = material or Enum.Material.SmoothPlastic
+		p.CanCollide = false
+		p.CanQuery = true
+		p.Massless = true
+		p.TopSurface = Enum.SurfaceType.Smooth
+		p.BottomSurface = Enum.SurfaceType.Smooth
+		p.Parent = m
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = hrp
+		weld.Part1 = p
+		weld.Parent = p
+		return p
+	end
+
+	local torso = limb("Torso", Vector3.new(2.2, 3.4, 1.2), CFrame.new(0, 1.7, 0) * CFrame.Angles(math.rad(-10), 0, 0))
+	-- The torso is the one part that collides, so players cannot walk through it.
+	torso.CanCollide = true
+	limb("Head", Vector3.new(1.5, 1.9, 1.5), CFrame.new(0, 4.3, -0.5) * CFrame.Angles(math.rad(-15), 0, 0))
+	limb(
+		"LeftArm",
+		Vector3.new(0.55, 5.5, 0.55),
+		CFrame.new(-1.5, 0.8, -0.3) * CFrame.Angles(math.rad(-12), 0, math.rad(-6))
+	)
+	limb(
+		"RightArm",
+		Vector3.new(0.55, 5.5, 0.55),
+		CFrame.new(1.5, 0.8, -0.3) * CFrame.Angles(math.rad(-12), 0, math.rad(6))
+	)
+	limb("LeftLeg", Vector3.new(0.8, 3.2, 0.8), CFrame.new(-0.6, -2.4, 0))
+	limb("RightLeg", Vector3.new(0.8, 3.2, 0.8), CFrame.new(0.6, -2.4, 0))
+	table.clear(eyes)
+	for _, x in { -0.35, 0.35 } do
+		local eye = limb(
+			"Eye",
+			Vector3.new(0.3, 0.2, 0.1),
+			CFrame.new(x, 4.5, -1.3),
+			Color3.fromRGB(255, 230, 200),
+			Enum.Material.Neon
+		)
+		eye.CanQuery = false
+		table.insert(eyes, eye)
+	end
+	local glow = Instance.new("PointLight")
+	glow.Color = Color3.fromRGB(255, 120, 90)
+	glow.Range = 8
+	glow.Brightness = 1.2
+	glow.Parent = eyes[1]
+
+	local hum = Instance.new("Humanoid")
+	hum.RigType = Enum.HumanoidRigType.R15
+	hum.HipHeight = 3 -- Root bottom (Y -1) to feet (Y -4).
+	hum.MaxHealth = C.MaxHealth
+	hum.Health = C.MaxHealth
+	hum.WalkSpeed = C.PatrolSpeed
+	hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+	hum.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
+	hum.BreakJointsOnDeath = false
+	hum.Parent = m
+
+	m.PrimaryPart = hrp
+	return m
+end
+
+------------------------------------------------------------------------------
+-- Movement
+------------------------------------------------------------------------------
+
+local function clearPath()
+	table.clear(waypoints)
+	waypointIndex = 1
+	pathGoal = nil
+end
+
+local function stopMoving()
+	if humanoid and root then
+		humanoid:MoveTo(root.Position)
+	end
+	clearPath()
+end
+
+local function setSpeed(speed: number)
+	if humanoid then
+		humanoid.WalkSpeed = speed
+	end
+end
+
+local function lineOfSightClear(from: Vector3, to: Vector3, ignore: { Instance }): boolean
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = ignore
+	params.IgnoreWater = true
+	return workspace:Raycast(from, to - from, params) == nil
+end
+
+local function characterList(): { Instance }
+	local list: { Instance } = {}
+	if model then
+		table.insert(list, model)
+	end
+	for _, player in Players:GetPlayers() do
+		if player.Character then
+			table.insert(list, player.Character)
+		end
+	end
+	return list
+end
+
+-- Moves toward `goal` using pathfinding, re-planning when the goal moves or
+-- the current plan goes stale. Returns false if it could not make progress.
+local function moveToward(goal: Vector3): boolean
+	if not humanoid or not root then
+		return false
+	end
+	local now = os.clock()
+	local needsPath = pathGoal == nil
+		or (goal - (pathGoal :: Vector3)).Magnitude > 4
+		or now - lastPathTime > C.RepathInterval * 3
+		or waypointIndex > #waypoints
+
+	if needsPath and now - lastPathTime >= C.RepathInterval then
+		lastPathTime = now
+		local ok = pcall(function()
+			path:ComputeAsync(root.Position, goal)
+		end)
+		if ok and path.Status == Enum.PathStatus.Success then
+			waypoints = path:GetWaypoints()
+			waypointIndex = math.min(2, #waypoints)
+			pathGoal = goal
+			pathFailures = 0
+		else
+			pathFailures += 1
+			clearPath()
+			-- Fallback: if nothing blocks the way, walk straight there.
+			if lineOfSightClear(root.Position, goal, characterList()) then
+				humanoid:MoveTo(goal)
+				return true
+			end
+			return pathFailures < 4
+		end
+	end
+
+	local waypoint = waypoints[waypointIndex]
+	if waypoint then
+		local flat = Vector3.new(waypoint.Position.X - root.Position.X, 0, waypoint.Position.Z - root.Position.Z)
+		if flat.Magnitude < 3 then
+			waypointIndex += 1
+			waypoint = waypoints[waypointIndex]
+		end
+	end
+	if waypoint then
+		humanoid:MoveTo(waypoint.Position)
+	else
+		humanoid:MoveTo(goal)
+	end
+
+	-- Stuck detection: no real progress for a while means re-plan.
+	if (root.Position - lastProgressPosition).Magnitude > 1.5 then
+		lastProgressPosition = root.Position
+		lastProgressTime = now
+	elseif now - lastProgressTime > 2.5 then
+		lastProgressTime = now
+		clearPath()
+		pathFailures += 1
+		return pathFailures < 4
+	end
+	return true
+end
+
+local function flatDistance(a: Vector3, b: Vector3): number
+	return Vector3.new(a.X - b.X, 0, a.Z - b.Z).Magnitude
+end
+
+------------------------------------------------------------------------------
+-- Senses
+------------------------------------------------------------------------------
+
+local function isHidden(player: Player, position: Vector3): boolean
+	return player:GetAttribute("Crouching") == true and Zones.InAnyTagged("HidingSpot", position)
+end
+
+local function canSee(player: Player, targetRoot: BasePart): boolean
+	if not root or not model then
+		return false
+	end
+	local eyePos = root.Position + Vector3.new(0, 4.3, 0)
+	local toTarget = targetRoot.Position - root.Position
+	local distance = toTarget.Magnitude
+	if distance < 1 then
+		return true
+	end
+	local range = if player:GetAttribute("FlashlightOn") then C.SightRangeFlashlightOn else C.SightRange
+	if distance > range then
+		return false
+	end
+	if isHidden(player, targetRoot.Position) and distance > C.HidingRevealDistance then
+		return false
+	end
+	-- View cone (always notices players brushing right past it).
+	local look = root.CFrame.LookVector
+	local flatDir = Vector3.new(toTarget.X, 0, toTarget.Z).Unit
+	local flatLook = Vector3.new(look.X, 0, look.Z).Unit
+	if distance > 6 and flatLook:Dot(flatDir) < math.cos(math.rad(C.SightHalfAngle)) then
+		return false
+	end
+	return lineOfSightClear(eyePos, targetRoot.Position + Vector3.new(0, 1.5, 0), characterList())
+end
+
+local function noiseRadius(player: Player, targetRoot: BasePart): number
+	local velocity = targetRoot.AssemblyLinearVelocity
+	local speed = Vector3.new(velocity.X, 0, velocity.Z).Magnitude
+	if speed < 2 then
+		return 0
+	elseif player:GetAttribute("Crouching") then
+		return C.HearingCrouch
+	elseif speed > Config.Player.WalkSpeed + 2 then
+		return C.HearingSprint
+	end
+	return C.HearingWalk
+end
+
+-- Finds the closest visible player, and the closest heard noise.
+local function sense(): (Player?, BasePart?, Vector3?)
+	if not root then
+		return nil, nil, nil
+	end
+	local seenPlayer: Player?, seenRoot: BasePart?, seenDistance = nil, nil, math.huge
+	local heardPosition: Vector3?, heardDistance = nil, math.huge
+	for _, player in Players:GetPlayers() do
+		local data = PlayerData.Get(player)
+		local _, _, playerRoot = PlayerData.GetAliveCharacter(player)
+		if not playerRoot or (data and data.Finished) then
+			continue
+		end
+		local distance = (playerRoot.Position - root.Position).Magnitude
+		if distance < seenDistance and canSee(player, playerRoot) then
+			seenPlayer, seenRoot, seenDistance = player, playerRoot, distance
+		end
+		if distance <= noiseRadius(player, playerRoot) and distance < heardDistance then
+			heardPosition, heardDistance = playerRoot.Position, distance
+		end
+	end
+	return seenPlayer, seenRoot, heardPosition
+end
+
+------------------------------------------------------------------------------
+-- State machine
+------------------------------------------------------------------------------
+
+local function setState(newState: State)
+	if state == newState then
+		return
+	end
+	state = newState
+	stateStarted = os.clock()
+	clearPath()
+	if model then
+		model:SetAttribute("State", newState) -- Visible in Studio for debugging.
+	end
+	if newState == "Patrol" or newState == "Return" then
+		setSpeed(C.PatrolSpeed)
+	elseif newState == "Investigate" or newState == "Search" then
+		setSpeed(C.InvestigateSpeed)
+	elseif newState == "Chase" then
+		setSpeed(C.ChaseSpeed)
+	elseif newState == "Hunt" then
+		setSpeed(C.HuntSpeed)
+	end
+end
+
+local function setEyesBright(bright: boolean)
+	for _, eye in eyes do
+		eye.Color = if bright then Color3.fromRGB(255, 40, 40) else Color3.fromRGB(255, 230, 200)
+	end
+end
+
+local function nearestPatrolIndex(): number
+	if not root then
+		return 1
+	end
+	local best, bestDistance = 1, math.huge
+	for i, point in patrolPoints do
+		local d = (point - root.Position).Magnitude
+		if d < bestDistance then
+			best, bestDistance = i, d
+		end
+	end
+	return best
+end
+
+local function currentTargetRoot(): BasePart?
+	if not target then
+		return nil
+	end
+	local data = PlayerData.Get(target)
+	local _, _, targetRoot = PlayerData.GetAliveCharacter(target)
+	if data and data.Finished then
+		return nil
+	end
+	return targetRoot
+end
+
+-- Starts an attack; the damage is decided when the wind-up ends.
+local function beginAttack()
+	setState("Attack")
+	attackStarted = os.clock()
+	stopMoving()
+	setEyesBright(true)
+end
+
+local function updateAttack(returnState: State)
+	local targetRoot = currentTargetRoot()
+	if not target or not targetRoot or not root then
+		setEyesBright(false)
+		setState(returnState)
+		return
+	end
+	-- Turn to face the target during the wind-up.
+	root.CFrame =
+		CFrame.lookAt(root.Position, Vector3.new(targetRoot.Position.X, root.Position.Y, targetRoot.Position.Z))
+	if os.clock() - attackStarted < C.AttackWindup then
+		return
+	end
+	-- Only hits if the player is still in reach: dodging the tell works.
+	if flatDistance(targetRoot.Position, root.Position) <= C.AttackRange + 1 then
+		local _, targetHumanoid = PlayerData.GetAliveCharacter(target)
+		if targetHumanoid then
+			targetHumanoid:TakeDamage(C.AttackDamage)
+			Remotes.CameraShake:FireClient(target, 0.4, 1.2)
+		end
+	end
+	lastAttackTime = os.clock()
+	setEyesBright(false)
+	setState(returnState)
+end
+
+local function tickExplore()
+	if not root then
+		return
+	end
+	local now = os.clock()
+	local seenPlayer, seenRoot, heardPosition = sense()
+
+	if state == "Attack" then
+		updateAttack("Chase")
+		return
+	end
+
+	if seenPlayer and seenRoot then
+		target = seenPlayer
+		lastSeenTime = now
+		lastKnownPosition = seenRoot.Position
+		if state ~= "Chase" then
+			setState("Chase")
+		end
+	elseif
+		heardPosition and (state == "Patrol" or state == "Return" or state == "Search" or state == "Investigate")
+	then
+		if state ~= "Investigate" or (investigatePosition and (heardPosition - investigatePosition).Magnitude > 8) then
+			investigatePosition = heardPosition
+			setState("Investigate")
+		end
+	end
+
+	if state == "Patrol" then
+		if #patrolPoints == 0 then
+			return
+		end
+		local point = patrolPoints[patrolIndex]
+		if flatDistance(point, root.Position) < 4 then
+			patrolIndex = patrolIndex % #patrolPoints + 1
+			point = patrolPoints[patrolIndex]
+		end
+		if not moveToward(point) then
+			patrolIndex = patrolIndex % #patrolPoints + 1
+			pathFailures = 0
+		end
+	elseif state == "Investigate" then
+		local goal = investigatePosition
+		if not goal then
+			setState("Return")
+			return
+		end
+		if flatDistance(goal, root.Position) < 5 or not moveToward(goal) then
+			-- Arrived (or cannot reach): pause and "listen".
+			stopMoving()
+			if now - stateStarted > C.InvestigateTime then
+				setState("Return")
+			end
+		elseif now - stateStarted > C.InvestigateTime * 3 then
+			setState("Return")
+		end
+	elseif state == "Chase" then
+		local targetRoot = currentTargetRoot()
+		if not targetRoot then
+			target = nil
+			setState("Return")
+			return
+		end
+		if now - lastSeenTime > C.LoseSightTime then
+			searchPoint = lastKnownPosition
+			setState("Search")
+			return
+		end
+		if
+			now - lastSeenTime < 0.3
+			and flatDistance(targetRoot.Position, root.Position) <= C.AttackRange
+			and now - lastAttackTime > C.AttackCooldown
+		then
+			beginAttack()
+			return
+		end
+		-- Chase toward where it last saw the player, not where they truly are.
+		if not moveToward(lastKnownPosition or targetRoot.Position) then
+			searchPoint = lastKnownPosition
+			setState("Search")
+		end
+	elseif state == "Search" then
+		if now - stateStarted > C.SearchTime then
+			target = nil
+			setState("Return")
+			return
+		end
+		local goal = searchPoint
+		if not goal or flatDistance(goal, root.Position) < 4 then
+			local base = lastKnownPosition or root.Position
+			searchPoint = base + Vector3.new(rng:NextNumber(-14, 14), 0, rng:NextNumber(-14, 14))
+			return
+		end
+		if not moveToward(goal) then
+			searchPoint = nil
+		end
+	elseif state == "Return" then
+		patrolIndex = nearestPatrolIndex()
+		setState("Patrol")
+	end
+end
+
+-- During the escape the creature ignores stealth and pursues whoever is
+-- still running through the collapsing temple.
+local function tickHunt()
+	if not root then
+		return
+	end
+	local now = os.clock()
+	if now < huntReleaseTime then
+		setState("Idle")
+		stopMoving()
+		return
+	end
+	if state == "Attack" then
+		updateAttack("Hunt")
+		return
+	end
+	local best: Player?, bestRoot: BasePart?, bestDistance = nil, nil, math.huge
+	for _, player in Players:GetPlayers() do
+		local data = PlayerData.Get(player)
+		local _, _, playerRoot = PlayerData.GetAliveCharacter(player)
+		if playerRoot and not (data and data.Finished) then
+			local pos = playerRoot.Position
+			-- Only players still on the escape route (not up the cliff).
+			if pos.Z > 285 and pos.Z < 447 and pos.Y < 18 then
+				local d = (pos - root.Position).Magnitude
+				if d < bestDistance then
+					best, bestRoot, bestDistance = player, playerRoot, d
+				end
+			end
+		end
+	end
+	if not best or not bestRoot then
+		setState("Idle")
+		stopMoving()
+		return
+	end
+	target = best
+	setState("Hunt")
+	if flatDistance(bestRoot.Position, root.Position) <= C.AttackRange and now - lastAttackTime > C.AttackCooldown then
+		beginAttack()
+		return
+	end
+	moveToward(bestRoot.Position)
+end
+
+------------------------------------------------------------------------------
+-- Public API
+------------------------------------------------------------------------------
+
+local function loadPatrolPoints()
+	local markers = CollectionService:GetTagged("StalkerPatrol")
+	table.sort(markers, function(a, b)
+		return (a:GetAttribute("Order") or 0) < (b:GetAttribute("Order") or 0)
+	end)
+	table.clear(patrolPoints)
+	for _, marker in markers do
+		if marker:IsA("BasePart") and marker:IsDescendantOf(workspace) then
+			table.insert(patrolPoints, marker.Position)
+		end
+	end
+	patrolIndex = 1
+end
+
+function StalkerService.Despawn()
+	if model then
+		model:Destroy()
+	end
+	model, humanoid, root = nil, nil, nil
+	table.clear(eyes)
+	clearPath()
+	target = nil
+end
+
+local function spawnAt(position: Vector3)
+	StalkerService.Despawn()
+	local m = buildModel(position)
+	m.Parent = workspace
+	model = m
+	humanoid = m:FindFirstChildOfClass("Humanoid")
+	local hrp = m.PrimaryPart
+	root = hrp
+	if hrp then
+		-- The server simulates the creature, so clients cannot move it.
+		pcall(function()
+			hrp:SetNetworkOwner(nil)
+		end)
+	end
+	lastProgressPosition = position
+	lastProgressTime = os.clock()
+end
+
+-- Spawns the creature on its patrol in the ruins (start of a run).
+function StalkerService.SpawnPatrol()
+	loadPatrolPoints()
+	local marker = Zones.FirstTagged("StalkerSpawn")
+	spawnAt(if marker then marker.Position else Vector3.new(0, 4, 292))
+	mode = "Explore"
+	state = "Idle"
+	setState("Patrol")
+end
+
+-- Starts the escape chase: the creature appears at the temple entrance and
+-- is released after a short delay, giving players a head start.
+function StalkerService.StartHunt(delaySeconds: number)
+	local marker = Zones.FirstTagged("StalkerHuntSpawn")
+	spawnAt(if marker then marker.Position else Vector3.new(0, 4, 296))
+	mode = "Hunt"
+	huntReleaseTime = os.clock() + delaySeconds
+	state = "Patrol"
+	setState("Idle")
+end
+
+function StalkerService.GetMode(): string
+	return mode
+end
+
+function StalkerService.Init()
+	task.spawn(function()
+		while true do
+			task.wait(C.TickInterval)
+			if model and root and humanoid and model.Parent then
+				local ok, err = pcall(if mode == "Hunt" then tickHunt else tickExplore)
+				if not ok then
+					warn("[StalkerService] AI tick failed:", err)
+				end
+			end
+		end
+	end)
+end
+
+return StalkerService
