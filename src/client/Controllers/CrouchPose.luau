@@ -2,181 +2,127 @@
 -- CrouchPose: makes crouching characters actually crouch (knees bent, hips
 -- low, leaning forward), for your own character and for other players.
 --
--- The pose is built in code as a KeyframeSequence and registered on this
--- player's machine, so no animation asset has to be uploaded. Each player's
--- game plays it on every character whose "Crouching" attribute is true
--- (the server sets that attribute), so everyone sees everyone crouch.
+-- The pose is applied straight to the body's joints every frame, on top of
+-- whatever animation is playing (so walking still moves the legs). This
+-- needs no animation asset, so it works the same in Studio and in the
+-- published game. Each player's game poses every character whose
+-- "Crouching" attribute is true (the server sets it), so everyone sees
+-- everyone crouch.
 
-local KeyframeSequenceProvider = game:GetService("KeyframeSequenceProvider")
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 
 local CrouchPose = {}
 
--- Joint rotations (degrees) and the hip drop, for a standard R15 body.
-local HIP_DROP = 1.05
-local JOINTS: { [string]: { number } } = {
-	-- { pitch, yaw, roll }; positive pitch tips a part forward/up.
-	UpperTorso = { 15, 0, 0 },
-	Head = { -10, 0, 0 },
-	LeftUpperLeg = { 75, 0, 0 },
-	RightUpperLeg = { 70, 0, 0 },
-	LeftLowerLeg = { -105, 0, 0 },
-	RightLowerLeg = { -100, 0, 0 },
-	LeftFoot = { 30, 0, 0 },
-	RightFoot = { 30, 0, 0 },
-	LeftUpperArm = { 20, 0, 0 },
-	RightUpperArm = { 20, 0, 0 },
-	LeftLowerArm = { 25, 0, 0 },
-	RightLowerArm = { 25, 0, 0 },
+local BLEND_SPEED = 6 -- How fast the body sinks into / rises out of the crouch.
+local HIP_DROP = 1.6 -- Studs the hips drop (keeps the feet on the ground).
+
+-- Extra rotation per joint (degrees: pitch, yaw, roll) at full crouch.
+-- Joint names are the standard R15 ones (Motor6D or AnimationConstraint).
+local JOINT_ANGLES: { [string]: { number } } = {
+	Waist = { 15, 0, 0 },
+	Neck = { -10, 0, 0 },
+	LeftHip = { 75, 0, 0 },
+	RightHip = { 70, 0, 0 },
+	LeftKnee = { -105, 0, 0 },
+	RightKnee = { -100, 0, 0 },
+	LeftAnkle = { 30, 0, 0 },
+	RightAnkle = { 30, 0, 0 },
+	LeftShoulder = { 20, 0, 0 },
+	RightShoulder = { 20, 0, 0 },
+	LeftElbow = { 25, 0, 0 },
+	RightElbow = { 25, 0, 0 },
 }
 
--- Parent of each part in the R15 pose tree.
-local PARENTS: { [string]: string } = {
-	LowerTorso = "HumanoidRootPart",
-	UpperTorso = "LowerTorso",
-	Head = "UpperTorso",
-	LeftUpperArm = "UpperTorso",
-	LeftLowerArm = "LeftUpperArm",
-	LeftHand = "LeftLowerArm",
-	RightUpperArm = "UpperTorso",
-	RightLowerArm = "RightUpperArm",
-	RightHand = "RightLowerArm",
-	LeftUpperLeg = "LowerTorso",
-	LeftLowerLeg = "LeftUpperLeg",
-	LeftFoot = "LeftLowerLeg",
-	RightUpperLeg = "LowerTorso",
-	RightLowerLeg = "RightUpperLeg",
-	RightFoot = "RightLowerLeg",
-}
+-- `written` remembers what we set last frame, so a joint no animation is
+-- driving does not keep sinking further every frame.
+type Rig = { joints: { [string]: Instance }, amount: number, written: { [string]: { CFrame } } }
 
-local animationId: string? = nil
-local tracks: { [Model]: AnimationTrack } = {}
+local rigs: { [Model]: Rig } = {}
+local localCrouching = false
 
-local function buildPose(): string?
-	local sequence = Instance.new("KeyframeSequence")
-	sequence.Name = "RiftfallCrouch"
-	sequence.Loop = true
-	sequence.Priority = Enum.AnimationPriority.Action
-	local keyframe = Instance.new("Keyframe")
-	keyframe.Time = 0
-	keyframe.Parent = sequence
-
-	local poses: { [string]: Pose } = {}
-	local root = Instance.new("Pose")
-	root.Name = "HumanoidRootPart"
-	root.Weight = 0
-	root.Parent = keyframe
-	poses.HumanoidRootPart = root
-	-- Create poses parent-first (LowerTorso before its children, and so on).
-	local order = {
-		"LowerTorso",
-		"UpperTorso",
-		"Head",
-		"LeftUpperArm",
-		"LeftLowerArm",
-		"LeftHand",
-		"RightUpperArm",
-		"RightLowerArm",
-		"RightHand",
-		"LeftUpperLeg",
-		"LeftLowerLeg",
-		"LeftFoot",
-		"RightUpperLeg",
-		"RightLowerLeg",
-		"RightFoot",
-	}
-	for _, name in order do
-		local pose = Instance.new("Pose")
-		pose.Name = name
-		local angles = JOINTS[name]
-		local cframe = CFrame.identity
-		if name == "LowerTorso" then
-			cframe = CFrame.new(0, -HIP_DROP, 0)
-		elseif angles then
-			cframe = CFrame.Angles(math.rad(angles[1]), math.rad(angles[2]), math.rad(angles[3]))
+local function findJoints(character: Model): { [string]: Instance }
+	local joints = {}
+	for _, d in character:GetDescendants() do
+		if (d:IsA("Motor6D") or d:IsA("AnimationConstraint")) and (JOINT_ANGLES[d.Name] or d.Name == "Root") then
+			joints[d.Name] = d
 		end
-		pose.CFrame = cframe
-		pose.EasingStyle = Enum.PoseEasingStyle.Linear
-		pose.Parent = poses[PARENTS[name]]
-		poses[name] = pose
 	end
-	-- A second identical keyframe so the looping pose holds still.
-	local hold = keyframe:Clone()
-	hold.Time = 1
-	hold.Parent = sequence
-
-	local ok, id = pcall(function()
-		return KeyframeSequenceProvider:RegisterKeyframeSequence(sequence)
-	end)
-	if not ok then
-		warn("[CrouchPose] Could not build the crouch pose:", id)
-		return nil
-	end
-	return id
+	return joints
 end
 
-local function setCrouching(character: Model, crouching: boolean)
-	local track = tracks[character]
-	if crouching then
-		if track and track.IsPlaying then
-			return
-		end
-		local humanoid = character:FindFirstChildOfClass("Humanoid")
-		local animator = humanoid and humanoid:FindFirstChildOfClass("Animator")
-		if not (animator and animationId) then
-			return
-		end
-		if not track then
-			local animation = Instance.new("Animation")
-			animation.AnimationId = animationId
-			local ok, loaded = pcall(function()
-				return (animator :: Animator):LoadAnimation(animation)
-			end)
-			if not ok or not loaded then
-				return
-			end
-			track = loaded
-			tracks[character] = loaded
-			character.Destroying:Once(function()
-				tracks[character] = nil
-			end)
-		end
-		(track :: AnimationTrack):Play(0.2)
-	elseif track then
-		track:Stop(0.2)
+local function wantsCrouch(player: Player): boolean
+	if player == Players.LocalPlayer then
+		return localCrouching
 	end
+	return player:GetAttribute("Crouching") == true
 end
 
-local function watchPlayer(player: Player)
-	local function refresh()
+local function offsetFor(name: string, amount: number): CFrame
+	if name == "Root" then
+		return CFrame.new(0, -HIP_DROP * amount, 0)
+	end
+	local a = JOINT_ANGLES[name]
+	return CFrame.Angles(math.rad(a[1] * amount), math.rad(a[2] * amount), math.rad(a[3] * amount))
+end
+
+local function update(dt: number)
+	for _, player in Players:GetPlayers() do
 		local character = player.Character
-		if character then
-			setCrouching(character, player:GetAttribute("Crouching") == true)
+		if not character then
+			continue
+		end
+		local rig = rigs[character]
+		local target = if wantsCrouch(player) then 1 else 0
+		if not rig then
+			if target == 0 then
+				continue
+			end
+			rig = { joints = findJoints(character), amount = 0, written = {} }
+			rigs[character] = rig
+			character.Destroying:Once(function()
+				rigs[character] = nil
+			end)
+		end
+		local r = rig :: Rig
+		r.amount += math.clamp(target - r.amount, -BLEND_SPEED * dt, BLEND_SPEED * dt)
+		-- Runs after the animations for this frame, so the crouch is layered
+		-- on top of them.
+		for name, joint in r.joints do
+			if not joint.Parent then
+				continue
+			end
+			local current: CFrame = (joint :: any).Transform
+			local last = r.written[name]
+			local base = current
+			if last and current:FuzzyEq(last[1], 1e-4) then
+				-- Nothing animated this joint since last frame: undo our offset.
+				base = last[1] * last[2]:Inverse()
+			end
+			local offset = offsetFor(name, r.amount)
+			local result = base * offset
+			;(joint :: any).Transform = result
+			r.written[name] = { result, offset }
+		end
+		if r.amount <= 0.001 then
+			r.amount = 0
 		end
 	end
-	player:GetAttributeChangedSignal("Crouching"):Connect(refresh)
-	player.CharacterAdded:Connect(function(character)
-		character:WaitForChild("Humanoid", 10)
-		refresh()
-	end)
-	refresh()
 end
 
--- The local player calls this directly so their own crouch shows at once,
--- without waiting for the server's attribute to come back.
+-- The local player calls this so their own crouch shows at once, without
+-- waiting for the server's attribute to come back.
 function CrouchPose.SetLocal(crouching: boolean)
-	local character = Players.LocalPlayer.Character
-	if character then
-		setCrouching(character, crouching)
-	end
+	localCrouching = crouching
 end
 
 function CrouchPose.Init()
-	animationId = buildPose()
-	Players.PlayerAdded:Connect(watchPlayer)
-	for _, player in Players:GetPlayers() do
-		watchPlayer(player)
-	end
+	Players.LocalPlayer.CharacterAdded:Connect(function()
+		localCrouching = false
+	end)
+	RunService.Stepped:Connect(function(_, dt)
+		update(dt)
+	end)
 end
 
 return CrouchPose

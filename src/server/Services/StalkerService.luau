@@ -3,7 +3,8 @@
 --
 -- It runs a simple state machine on the server, a few times per second:
 --
---   Patrol      walks a loop of patrol points in the ruins
+--   Patrol      wanders the ruins: picks a random spot near a random patrol
+--               point, walks there, pauses to look around, then picks again
 --   Investigate heard a noise: walks to where it came from and looks around
 --   Chase       sees a player: runs at them
 --   Attack      close enough: winds up (a visible tell) and then swings
@@ -60,6 +61,16 @@ local noises: { Noise } = {}
 
 local patrolPoints: { Vector3 } = {}
 local patrolIndex = 1
+-- Random patrol: the spot it is walking to, and how long it lingers there.
+local patrolGoal: Vector3? = nil
+local lingerUntil = 0
+local recentPoints: { number } = {}
+local PATROL_SCATTER = 9 -- Studs around a patrol point it may wander to.
+local LINGER_TIME = NumberRange.new(1, 4)
+-- Players who just respawned: the creature ignores them for a moment.
+local graceUntil: { [Player]: number } = {}
+local RESPAWN_SAFE_DISTANCE = 70
+local RESPAWN_GRACE = 6
 
 -- Pathfinding bookkeeping.
 local path = PathfindingService:CreatePath({
@@ -486,6 +497,9 @@ local function sense(): (Player?, BasePart?, Vector3?)
 		if not playerRoot or (data and data.Finished) then
 			continue
 		end
+		if (graceUntil[player] or 0) > os.clock() then
+			continue -- Just respawned: give them a moment to get their bearings.
+		end
 		local distance = (playerRoot.Position - root.Position).Magnitude
 		if distance < seenDistance and canSee(player, playerRoot) then
 			seenPlayer, seenRoot, seenDistance = player, playerRoot, distance
@@ -602,6 +616,40 @@ local function updateAttack(returnState: State)
 	setState(returnState)
 end
 
+-- Picks the next place to wander to: a random patrol point it has not
+-- visited recently, nudged by a random offset, so its route is never the
+-- same twice and players cannot simply learn a loop.
+local function pickPatrolGoal()
+	if #patrolPoints == 0 then
+		patrolGoal = nil
+		return
+	end
+	local choices = {}
+	for i = 1, #patrolPoints do
+		if not table.find(recentPoints, i) then
+			table.insert(choices, i)
+		end
+	end
+	if #choices == 0 then
+		table.clear(recentPoints)
+		for i = 1, #patrolPoints do
+			table.insert(choices, i)
+		end
+	end
+	patrolIndex = choices[rng:NextInteger(1, #choices)]
+	table.insert(recentPoints, patrolIndex)
+	while #recentPoints > math.max(1, math.floor(#patrolPoints / 2)) do
+		table.remove(recentPoints, 1)
+	end
+	local base = patrolPoints[patrolIndex]
+	patrolGoal = base
+		+ Vector3.new(
+			rng:NextNumber(-PATROL_SCATTER, PATROL_SCATTER),
+			0,
+			rng:NextNumber(-PATROL_SCATTER, PATROL_SCATTER)
+		)
+end
+
 local function tickExplore()
 	if not root then
 		return
@@ -634,13 +682,21 @@ local function tickExplore()
 		if #patrolPoints == 0 then
 			return
 		end
-		local point = patrolPoints[patrolIndex]
-		if flatDistance(point, root.Position) < 4 then
-			patrolIndex = patrolIndex % #patrolPoints + 1
-			point = patrolPoints[patrolIndex]
+		if now < lingerUntil then
+			-- Pausing to look around before moving on.
+			stopMoving()
+			return
 		end
-		if not moveToward(point) then
-			patrolIndex = patrolIndex % #patrolPoints + 1
+		if not patrolGoal then
+			pickPatrolGoal()
+		end
+		local goal = patrolGoal :: Vector3
+		if flatDistance(goal, root.Position) < 4 then
+			lingerUntil = now + rng:NextNumber(LINGER_TIME.Min, LINGER_TIME.Max)
+			patrolGoal = nil
+		elseif not moveToward(goal) then
+			-- Cannot get there (blocked by ruins): pick somewhere else.
+			patrolGoal = nil
 			pathFailures = 0
 		end
 	elseif state == "Investigate" then
@@ -700,6 +756,7 @@ local function tickExplore()
 		end
 	elseif state == "Return" then
 		patrolIndex = nearestPatrolIndex()
+		patrolGoal = nil
 		setState("Patrol")
 	end
 end
@@ -867,6 +924,42 @@ function StalkerService.PlaySighting(from: Vector3, to: Vector3, seconds: number
 		task.wait(0.08)
 	end
 	m:Destroy()
+end
+
+-- Called when a player respawns at `position`. The creature never waits at
+-- a respawn point: if it is close, it is moved to the patrol point furthest
+-- from the player and goes back to wandering, and it ignores that player
+-- for a few seconds either way.
+function StalkerService.OnPlayerRespawned(player: Player, position: Vector3)
+	graceUntil[player] = os.clock() + RESPAWN_GRACE
+	if target == player then
+		target = nil
+	end
+	local hrp = root
+	if not hrp or mode ~= "Explore" or #patrolPoints == 0 then
+		return
+	end
+	if (hrp.Position - position).Magnitude >= RESPAWN_SAFE_DISTANCE then
+		if target == nil and (state == "Chase" or state == "Attack" or state == "Search") then
+			setState("Return")
+		end
+		return
+	end
+	local farthest, farthestDistance = patrolPoints[1], -1
+	for _, point in patrolPoints do
+		local d = (point - position).Magnitude
+		if d > farthestDistance then
+			farthest, farthestDistance = point, d
+		end
+	end
+	stopMoving()
+	local m = model
+	if m then
+		m:PivotTo(CFrame.new(farthest + Vector3.new(0, 2, 0)))
+	end
+	patrolGoal = nil
+	lingerUntil = os.clock() + 2
+	setState("Patrol")
 end
 
 function StalkerService.GetMode(): string

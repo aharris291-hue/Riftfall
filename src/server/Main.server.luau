@@ -48,6 +48,14 @@ PuzzleService.OnSolved = function()
 end
 CheckpointService.OnPlayerSpawned(function(player)
 	InventoryService.Sync(player)
+	-- Never respawn next to the creature.
+	task.delay(0.2, function()
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		if root and root:IsA("BasePart") then
+			StalkerService.OnPlayerRespawned(player, root.Position)
+		end
+	end)
 end)
 InventoryService.ThrowItem = function(itemId, root)
 	if itemId == "Flare" then
