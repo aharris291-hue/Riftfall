@@ -29,6 +29,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local SceneryKit = require(script.Parent.Parent.Util.SceneryKit)
+local LevelDresser = require(script.Parent.Parent.Util.LevelDresser)
 
 local LevelBuilder = {}
 
@@ -1494,6 +1495,12 @@ function LevelBuilder.Build(): Folder
 	local ok, err = pcall(buildBackdrop, level, freshTerrain)
 	if not ok then
 		warn("[LevelBuilder] Backdrop failed:", err)
+	end
+
+	-- Swap plain blocks for real meshes and materials (visual only).
+	local dressed, dressErr = pcall(LevelDresser.Dress, level)
+	if not dressed then
+		warn("[LevelBuilder] Dressing failed:", dressErr)
 	end
 
 	-- Parent last: one replication burst instead of thousands of small ones.

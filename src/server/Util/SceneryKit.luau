@@ -363,12 +363,35 @@ export type ArchOptions = {
 	Rng: Random,
 }
 
+-- Library arches can carry an "OpeningRatio" attribute (opening width /
+-- total width). Such an arch is stretched so its opening fits the requested
+-- width (so the ruins gate fits inside it); height and depth grow a little
+-- less to keep the stonework from looking flattened.
+local function fitArchOpening(model: Model, at: CFrame, options: ArchOptions)
+	local ratio = model:GetAttribute("OpeningRatio")
+	if type(ratio) ~= "number" or ratio <= 0 then
+		return
+	end
+	local _, size = model:GetBoundingBox()
+	local sx = (options.Width + 1.5) / ratio / size.X
+	local scale = Vector3.new(sx, math.max(sx * 0.8, 1), math.max(sx * 0.8, 1))
+	for _, d in model:GetDescendants() do
+		if d:IsA("BasePart") then
+			local offset = at:ToObjectSpace(d.CFrame)
+			d.Size = d.Size * scale
+			d.CFrame = at * CFrame.new(offset.Position * scale) * offset.Rotation
+		end
+	end
+end
+
 -- A carved stone archway, mossy and wrapped in roots. The opening faces
 -- along the CFrame's LookVector.
 function SceneryKit.Arch(parent: Instance, at: CFrame, options: ArchOptions)
 	local rng = options.Rng
 	local slot = if options.Broken then SceneryKit.Slots.BrokenArch else SceneryKit.Slots.Arch
-	if fromLibrary(slot, parent, at, nil) then
+	local real = fromLibrary(slot, parent, at, nil)
+	if real then
+		fitArchOpening(real, at, options)
 		return
 	end
 	local model = Instance.new("Model")
