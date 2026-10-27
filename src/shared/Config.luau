@@ -104,15 +104,24 @@ Config.World = {
 	KillHeight = -40, -- Falling below this Y position is fatal.
 }
 
--- Sound asset IDs. These are EMPTY on purpose: no audio has been chosen yet,
--- and made-up IDs would not work. To add a sound, find one you are allowed to
--- use in the Creator Store (Toolbox > Audio), copy its number, and paste it
--- here as "rbxassetid://123456789". Empty entries are simply skipped.
+-- Sound asset IDs. All are licensed Roblox library audio (Pro Sound Effects
+-- and APM Music, free to use in Roblox games). To swap one, find a sound in
+-- the Creator Store (Toolbox > Audio), copy its number, and paste it here as
+-- "rbxassetid://123456789". An empty entry is simply skipped.
 Config.Sounds = {
-	Rain = "",
-	Thunder = "",
-	Heartbeat = "",
-	Rumble = "",
+	-- Weather and ambience
+	Rain = "rbxassetid://9112855439", -- Rain On Water 2 (loop)
+	Jungle = "rbxassetid://9112738716", -- African Jungle Ambience 2 (loop)
+	Thunder = "rbxassetid://9116282646", -- Lightning Strike Sharp Hissing Crack 3
+	Rumble = "rbxassetid://9113169432", -- Artillery Distant 2 (deep booms)
+	BridgeCrack = "rbxassetid://9120818969", -- Wood Crack Busy Clunky Splintering 3
+	-- The creature
+	Heartbeat = "rbxassetid://9043365842", -- HEARTBEAT 02 96BPM
+	CreatureRoar = "rbxassetid://9113980319", -- Creature Mix Roar Growl 1
+	-- Music, one track per mood (crossfaded by AudioController)
+	MusicExplore = "rbxassetid://1843721367", -- Low Drone 19
+	MusicSuspense = "rbxassetid://1843867314", -- Tension Repeat Drones 29
+	MusicChase = "rbxassetid://9038867563", -- Declaration Of War (drums)
 	Pickup = "",
 }
 

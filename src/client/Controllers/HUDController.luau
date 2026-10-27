@@ -21,6 +21,8 @@ local Items = require(ReplicatedStorage.Shared.Items)
 local Story = require(ReplicatedStorage.Shared.Story)
 local CharacterDesigns = require(ReplicatedStorage.Shared.CharacterDesigns)
 local ClientState = require(script.Parent.Parent.ClientState)
+local ClientSettings = require(script.Parent.Parent.ClientSettings)
+local Settings = require(ReplicatedStorage.Shared.Settings)
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local player = Players.LocalPlayer
@@ -118,33 +120,9 @@ local damageFlash = 0
 
 -- Brightness option: brightens only this player's screen (exposure), so
 -- anyone who finds the night too dark can fix it without code changes.
-local BRIGHTNESS_LEVELS = {
-	{ Name = "Normal", Exposure = 0 },
-	{ Name = "Bright", Exposure = 0.6 },
-	{ Name = "Brightest", Exposure = 1.2 },
-}
-
-local function buildBrightnessButton()
-	local index = 1
-	local button = new("TextButton", {
-		Name = "Brightness",
-		Position = UDim2.fromOffset(16, 86),
-		Size = UDim2.fromOffset(180, 28),
-		BackgroundColor3 = COLORS.Panel,
-		BackgroundTransparency = 0.3,
-		BorderSizePixel = 0,
-		Font = FONT,
-		TextSize = 13,
-		TextColor3 = COLORS.Muted,
-		Text = "Brightness: Normal",
-		Parent = gui,
-	}, { corner(6) })
-	button.Activated:Connect(function()
-		index = index % #BRIGHTNESS_LEVELS + 1
-		local level = BRIGHTNESS_LEVELS[index]
-		Lighting.ExposureCompensation = Config.Lighting.ExposureCompensation + level.Exposure
-		button.Text = "Brightness: " .. level.Name
-	end)
+local function applyBrightness(level: string)
+	local exposure = (Settings.BrightnessExposure :: any)[level] or 0
+	Lighting.ExposureCompensation = Config.Lighting.ExposureCompensation + exposure
 end
 
 -- Graphics option: "Fast" turns off the most expensive effects on this
@@ -189,33 +167,214 @@ local function setFastGraphics(fast: boolean)
 	end
 end
 
-local function buildGraphicsButton()
+-- Settings menu: a button (or the M key) opens a panel with volume
+-- sliders and the subtitle, brightness and graphics options. Changes apply
+-- at once and are saved by the server (see ClientSettings / SaveService).
+local settingsFrame: Frame
+
+local function makeSlider(parent: Instance, order: number, title: string, key: string)
+	local row = new("Frame", {
+		Name = key,
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, 0, 0, 44),
+		LayoutOrder = order,
+		Parent = parent,
+	})
+	local text = label({ Size = UDim2.new(1, 0, 0, 18), TextSize = 14, Text = title, Parent = row })
+	local bar = new("TextButton", {
+		Name = "Bar",
+		AutoButtonColor = false,
+		Text = "",
+		Position = UDim2.fromOffset(0, 24),
+		Size = UDim2.new(1, 0, 0, 12),
+		BackgroundColor3 = Color3.fromRGB(50, 52, 56),
+		BorderSizePixel = 0,
+		Parent = row,
+	}, { corner(6) })
+	local fill = new("Frame", {
+		Name = "Fill",
+		Size = UDim2.fromScale(0, 1),
+		BackgroundColor3 = COLORS.Accent,
+		BorderSizePixel = 0,
+		Parent = bar,
+	}, { corner(6) })
+	local function show(value: number)
+		fill.Size = UDim2.fromScale(value, 1)
+		text.Text = string.format("%s: %d%%", title, math.round(value * 100))
+	end
+	show(ClientSettings.Get(key))
+	ClientSettings.OnChanged(function(changed, value)
+		if changed == key and type(value) == "number" then
+			show(value)
+		end
+	end)
+	local dragging = false
+	local function setFromX(x: number)
+		local fraction = math.clamp((x - bar.AbsolutePosition.X) / math.max(bar.AbsoluteSize.X, 1), 0, 1)
+		ClientSettings.Set(key, math.round(fraction * 20) / 20)
+	end
+	local function isPress(input: InputObject): boolean
+		return input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch
+	end
+	bar.InputBegan:Connect(function(input)
+		if isPress(input) then
+			dragging = true
+			setFromX(input.Position.X)
+		end
+	end)
+	UserInputService.InputChanged:Connect(function(input)
+		local moved = input.UserInputType == Enum.UserInputType.MouseMovement
+			or input.UserInputType == Enum.UserInputType.Touch
+		if dragging and moved then
+			setFromX(input.Position.X)
+		end
+	end)
+	UserInputService.InputEnded:Connect(function(input)
+		if isPress(input) then
+			dragging = false
+		end
+	end)
+end
+
+local function makeChoice(parent: Instance, order: number, title: string, key: string)
+	local choices = (Settings.Choices :: any)[key] :: { string }
 	local button = new("TextButton", {
-		Name = "Graphics",
-		Position = UDim2.fromOffset(16, 118),
-		Size = UDim2.fromOffset(180, 28),
+		Name = key,
+		LayoutOrder = order,
+		Size = UDim2.new(1, 0, 0, 32),
+		BackgroundColor3 = Color3.fromRGB(40, 42, 46),
+		BorderSizePixel = 0,
+		Font = FONT,
+		TextSize = 14,
+		TextColor3 = COLORS.Text,
+		Parent = parent,
+	}, { corner(6) })
+	local function show(value: any)
+		button.Text = title .. ": " .. tostring(value) .. "   >"
+	end
+	show(ClientSettings.Get(key))
+	ClientSettings.OnChanged(function(changed, value)
+		if changed == key then
+			show(value)
+		end
+	end)
+	button.Activated:Connect(function()
+		local index = table.find(choices, ClientSettings.Get(key)) or 1
+		ClientSettings.Set(key, choices[index % #choices + 1])
+	end)
+end
+
+local function toggleSettings(open: boolean?)
+	local show = if open == nil then not settingsFrame.Visible else open
+	settingsFrame.Visible = show
+	ClientState.ModalOpen = show or noteFrame.Visible or endFrame.Visible
+end
+
+local function buildSettings()
+	local openButton = new("TextButton", {
+		Name = "SettingsButton",
+		Position = UDim2.fromOffset(16, 86),
+		Size = UDim2.fromOffset(150, 28),
 		BackgroundColor3 = COLORS.Panel,
 		BackgroundTransparency = 0.3,
 		BorderSizePixel = 0,
 		Font = FONT,
 		TextSize = 13,
 		TextColor3 = COLORS.Muted,
-		Text = "Graphics: Best",
+		Text = "Settings (M)",
 		Parent = gui,
 	}, { corner(6) })
-	-- Lights created later (flashlights, flares, a rebuilt level) follow the setting.
-	workspace.DescendantAdded:Connect(applyFastToLight)
-	button.Activated:Connect(function()
-		setFastGraphics(not fastGraphics)
-		button.Text = if fastGraphics then "Graphics: Fast" else "Graphics: Best"
+	openButton.Activated:Connect(function()
+		toggleSettings()
 	end)
+
+	settingsFrame = panel({
+		Name = "Settings",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(340, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 0.08,
+		Visible = false,
+		ZIndex = 5,
+		Parent = gui,
+	})
+	new("UIPadding", {
+		PaddingTop = UDim.new(0, 16),
+		PaddingBottom = UDim.new(0, 16),
+		PaddingLeft = UDim.new(0, 18),
+		PaddingRight = UDim.new(0, 18),
+		Parent = settingsFrame,
+	})
+	new("UIListLayout", {
+		Padding = UDim.new(0, 10),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = settingsFrame,
+	})
+	label({
+		Name = "Title",
+		Size = UDim2.new(1, 0, 0, 26),
+		Font = FONT_BOLD,
+		TextSize = 20,
+		Text = "Settings",
+		LayoutOrder = 0,
+		Parent = settingsFrame,
+	})
+	makeSlider(settingsFrame, 1, "Music", "MusicVolume")
+	makeSlider(settingsFrame, 2, "Sound effects", "EffectsVolume")
+	makeSlider(settingsFrame, 3, "Rain and jungle", "AmbienceVolume")
+	makeChoice(settingsFrame, 4, "Subtitle size", "SubtitleSize")
+	makeChoice(settingsFrame, 5, "Brightness", "Brightness")
+	makeChoice(settingsFrame, 6, "Graphics", "Graphics")
+	label({
+		Name = "Hint",
+		Size = UDim2.new(1, 0, 0, 32),
+		TextSize = 12,
+		TextColor3 = COLORS.Muted,
+		Text = "Graphics: Fast turns off shadows and heavy effects for slower devices. Your settings are saved.",
+		LayoutOrder = 7,
+		Parent = settingsFrame,
+	})
+	local closeButton = new("TextButton", {
+		Name = "Close",
+		LayoutOrder = 8,
+		Size = UDim2.new(1, 0, 0, 34),
+		BackgroundColor3 = COLORS.Accent,
+		BorderSizePixel = 0,
+		Font = FONT_BOLD,
+		TextSize = 15,
+		TextColor3 = Color3.new(1, 1, 1),
+		Text = "Close",
+		Parent = settingsFrame,
+	}, { corner(6) })
+	closeButton.Activated:Connect(function()
+		toggleSettings(false)
+	end)
+
+	-- Apply the visual settings now and whenever they change. Lights created
+	-- later (flashlights, flares, a rebuilt level) follow the Graphics setting.
+	workspace.DescendantAdded:Connect(applyFastToLight)
+	local function apply(key: string, value: any)
+		if key == "Brightness" then
+			applyBrightness(value)
+		elseif key == "Graphics" then
+			setFastGraphics(value == "Fast")
+		elseif key == "SubtitleSize" and subtitleButton then
+			subtitleButton.TextSize = (Settings.SubtitleTextSize :: any)[value] or 18
+		end
+	end
+	for _, key in { "Brightness", "Graphics", "SubtitleSize" } do
+		apply(key, ClientSettings.Get(key))
+	end
+	ClientSettings.OnChanged(apply)
 end
 
 -- Outfit option: cycles Jax's outfits (cosmetic; the server applies it).
 local function buildOutfitButton()
 	local button = new("TextButton", {
 		Name = "Outfit",
-		Position = UDim2.fromOffset(202, 86),
+		Position = UDim2.fromOffset(172, 86),
 		Size = UDim2.fromOffset(154, 28),
 		BackgroundColor3 = COLORS.Panel,
 		BackgroundTransparency = 0.3,
@@ -876,12 +1035,10 @@ function HUDController.Init()
 	})
 	buildEdges()
 	buildObjective()
-	buildBrightnessButton()
 	-- Outfits only apply to the built-in body, not a custom StarterCharacter.
 	if not game:GetService("StarterPlayer"):FindFirstChild("StarterCharacter") then
 		buildOutfitButton()
 	end
-	buildGraphicsButton()
 	buildToasts()
 	buildBars()
 	buildInventory()
@@ -890,6 +1047,7 @@ function HUDController.Init()
 	buildNoteReader()
 	buildDeathScreen()
 	buildEndScreen()
+	buildSettings()
 	refreshInventory()
 
 	-- Objective (stored on ReplicatedStorage so late joiners see it too).
@@ -937,6 +1095,8 @@ function HUDController.Init()
 		local index = table.find(slotKeys, input.KeyCode)
 		if index and index <= Config.Inventory.SlotCount then
 			Remotes.UseItem:FireServer(index)
+		elseif input.KeyCode == Enum.KeyCode.M then
+			toggleSettings()
 		elseif input.KeyCode == Enum.KeyCode.Return then
 			if noteFrame.Visible then
 				noteFrame.Visible = false

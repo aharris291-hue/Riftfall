@@ -19,6 +19,7 @@ local CheckpointService = {}
 -- Listeners notified when a player dies / spawns (set up by other services).
 local diedListeners: { (Player) -> () } = {}
 local spawnedListeners: { (Player, Model) -> () } = {}
+local reachedListeners: { (Player, number) -> () } = {}
 
 function CheckpointService.OnPlayerDied(callback: (Player) -> ())
 	table.insert(diedListeners, callback)
@@ -26,6 +27,11 @@ end
 
 function CheckpointService.OnPlayerSpawned(callback: (Player, Model) -> ())
 	table.insert(spawnedListeners, callback)
+end
+
+-- Called with (player, order) whenever a player reaches a new checkpoint.
+function CheckpointService.OnCheckpointReached(callback: (Player, number) -> ())
+	table.insert(reachedListeners, callback)
 end
 
 -- Sets a checkpoint if it is further along than the player's current one.
@@ -38,6 +44,9 @@ function CheckpointService.Set(player: Player, order: number, spawnPosition: Vec
 	data.CheckpointSpawn = spawnPosition
 	if name then
 		StoryService.Toast(player, "Checkpoint reached: " .. name, "checkpoint")
+		for _, callback in reachedListeners do
+			task.spawn(callback, player, order)
+		end
 	end
 end
 

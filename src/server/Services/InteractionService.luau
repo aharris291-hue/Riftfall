@@ -20,6 +20,9 @@ local MAX_INTERACT_DISTANCE = 14
 
 local InteractionService = {}
 
+-- Set by Main: called with (player, tagId) the first time a tag is found.
+InteractionService.OnEvidenceFound = nil :: ((Player, string) -> ())?
+
 local function closeEnough(player: Player, part: BasePart): boolean
 	local _, _, root = PlayerData.GetAliveCharacter(player)
 	return root ~= nil and (root.Position - part.Position).Magnitude <= MAX_INTERACT_DISTANCE
@@ -107,6 +110,9 @@ local function bindEvidence(inst: Instance)
 				found += 1
 			end
 			StoryService.Toast(player, string.format("Evidence found: %d / %d", found, #Story.Evidence), "good")
+			if InteractionService.OnEvidenceFound then
+				InteractionService.OnEvidenceFound(player, noteId)
+			end
 		end
 	end)
 end

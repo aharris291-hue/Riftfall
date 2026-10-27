@@ -22,6 +22,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local PathfindingService = game:GetService("PathfindingService")
 local CollectionService = game:GetService("CollectionService")
+local ServerStorage = game:GetService("ServerStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Zones = require(script.Parent.Parent.Util.Zones)
@@ -81,6 +82,8 @@ local rng = Random.new()
 local MODEL_NAME = "RiftStalker"
 local EYE_COLOR = Color3.fromRGB(255, 90, 230)
 local ATTACK_EYE_COLOR = Color3.fromRGB(255, 30, 30)
+
+local applyRealModel: (Model, BasePart) -> ()
 
 ------------------------------------------------------------------------------
 -- Model
@@ -257,7 +260,60 @@ local function buildModel(position: Vector3): Model
 	hum.Parent = m
 
 	m.PrimaryPart = hrp
+	applyRealModel(m, hrp)
 	return m
+end
+
+-- If ServerStorage > RiftfallAssets > RiftStalker holds a MeshPart, the
+-- creature wears it: the placeholder parts become invisible (the torso still
+-- collides), and the eyes and core keep glowing so the attack tell (eyes
+-- turning red) stays readable. The mesh is welded to the root, feet on the
+-- ground, facing the same way.
+function applyRealModel(m: Model, hrp: BasePart)
+	local library = ServerStorage:FindFirstChild("RiftfallAssets")
+	local template = library and library:FindFirstChild("RiftStalker")
+	if not (template and template:IsA("BasePart")) then
+		return
+	end
+	for _, part in m:GetDescendants() do
+		if part:IsA("BasePart") and part ~= hrp and part.Name ~= "Eye" then
+			part.Transparency = 1
+			part:SetAttribute("BaseTransparency", 1)
+		end
+	end
+	local body = template:Clone()
+	body.Name = "Body"
+	body.Anchored = false
+	body.CanCollide = false
+	body.CanQuery = false
+	body.CanTouch = false
+	body.Massless = true
+	local feetY = -(hrp.Size.Y / 2) - 3 -- HipHeight below the root's bottom.
+	body.CFrame = hrp.CFrame * CFrame.new(0, feetY + body.Size.Y / 2, 0)
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = hrp
+	weld.Part1 = body
+	weld.Parent = body
+	body.Parent = m
+	local eyeHeight = body:GetAttribute("EyeHeight")
+	local eyeForward = body:GetAttribute("EyeForward")
+	if type(eyeHeight) == "number" and type(eyeForward) == "number" then
+		for i, eye in eyes do
+			eye.CFrame = hrp.CFrame * CFrame.new(if i == 1 then -0.42 else 0.42, eyeHeight, -eyeForward)
+		end
+	end
+end
+
+-- Fades the creature in and out (its "phasing" flicker). Parts return to
+-- their own resting transparency, so invisible parts stay invisible.
+local function setFaded(m: Model, amount: number?)
+	for _, part in m:GetDescendants() do
+		if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+			local base = part:GetAttribute("BaseTransparency")
+			local resting = if type(base) == "number" then base else 0
+			part.Transparency = if amount then math.max(resting, amount) else resting
+		end
+	end
 end
 
 ------------------------------------------------------------------------------
@@ -805,17 +861,9 @@ function StalkerService.PlaySighting(from: Vector3, to: Vector3, seconds: number
 	end
 	-- Flicker out of this dimension.
 	for _ = 1, 3 do
-		for _, part in m:GetDescendants() do
-			if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-				part.Transparency = 0.8
-			end
-		end
+		setFaded(m, 0.8)
 		task.wait(0.1)
-		for _, part in m:GetDescendants() do
-			if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-				part.Transparency = 0
-			end
-		end
+		setFaded(m, nil)
 		task.wait(0.08)
 	end
 	m:Destroy()
@@ -834,17 +882,9 @@ local function phaseFlicker()
 		return
 	end
 	for _ = 1, 2 do
-		for _, part in m:GetDescendants() do
-			if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-				part.Transparency = 0.7
-			end
-		end
+		setFaded(m, 0.7)
 		task.wait(0.12)
-		for _, part in m:GetDescendants() do
-			if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-				part.Transparency = 0
-			end
-		end
+		setFaded(m, nil)
 		task.wait(0.1)
 	end
 end

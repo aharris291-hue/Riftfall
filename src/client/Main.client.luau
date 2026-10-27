@@ -3,12 +3,16 @@
 -- StarterPlayerScripts, and survives respawns.
 
 local Controllers = script.Parent.Controllers
+local ClientSettings = require(script.Parent.ClientSettings)
 
 local HUDController = require(Controllers.HUDController)
 local MovementController = require(Controllers.MovementController)
 local FlashlightController = require(Controllers.FlashlightController)
 local AtmosphereController = require(Controllers.AtmosphereController)
+local AudioController = require(Controllers.AudioController)
 
+ClientSettings.Init()
+AudioController.Init()
 HUDController.Init()
 MovementController.Init()
 FlashlightController.Init()

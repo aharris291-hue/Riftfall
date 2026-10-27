@@ -174,14 +174,46 @@ local function standOn(model: Model, spot: BasePart, slump: boolean)
 	root.Anchored = true
 	model.PrimaryPart = root
 	-- Work out how far the root sits above the feet, then stand on the spot.
-	local boxCFrame, boxSize = model:GetBoundingBox()
-	local rootAboveFeet = root.Position.Y - (boxCFrame.Position.Y - boxSize.Y / 2)
-	local target = spot.CFrame + Vector3.new(0, rootAboveFeet - spot.Size.Y / 2 + 0.5, 0)
-	if slump then
-		-- Leaning back against the pillar, head hanging.
-		target = target * CFrame.new(0, -1.2, 0) * CFrame.Angles(math.rad(-22), 0, 0)
+	-- For an R15 humanoid that is its hip height plus half the root; the
+	-- bounding box is only a fallback (before the model is in the world its
+	-- joints have not been solved, so the box can be wrong).
+	local humanoid = model:FindFirstChildOfClass("Humanoid")
+	local rootAboveFeet
+	if humanoid and humanoid.RigType == Enum.HumanoidRigType.R15 and humanoid.HipHeight > 0 then
+		rootAboveFeet = humanoid.HipHeight + root.Size.Y / 2
+	else
+		local boxCFrame, boxSize = model:GetBoundingBox()
+		rootAboveFeet = root.Position.Y - (boxCFrame.Position.Y - boxSize.Y / 2)
 	end
-	model:PivotTo(target)
+	-- Stand on whatever is really under the spot (the terrain sits a little
+	-- above the marker in places), so nobody is sunk into the mud. Freshly
+	-- filled terrain takes a moment before rays can hit it (until then they
+	-- pass through to the old floor parts below), so wait briefly first.
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { model, spot }
+	params.RespectCanCollide = true
+	local function place(groundY: number)
+		local target = spot.CFrame.Rotation
+			+ Vector3.new(spot.Position.X, groundY + rootAboveFeet + 0.05, spot.Position.Z)
+		if slump then
+			-- Leaning back against the pillar, head hanging.
+			target = target * CFrame.new(0, -1.2, 0) * CFrame.Angles(math.rad(-22), 0, 0)
+		end
+		model:PivotTo(target)
+	end
+	place(spot.Position.Y - spot.Size.Y / 2)
+	task.spawn(function()
+		task.wait(2)
+		for _ = 1, 40 do
+			local hit = workspace:Raycast(spot.Position + Vector3.new(0, 6, 0), Vector3.new(0, -14, 0), params)
+			if hit then
+				place(hit.Position.Y)
+				return
+			end
+			task.wait(0.25)
+		end
+	end)
 end
 
 local function addTalkPrompt(model: Model, characterId: string, phase: string)
@@ -206,6 +238,43 @@ local function addTalkPrompt(model: Model, characterId: string, phase: string)
 	end)
 end
 
+-- Roblox's own R15 idle animations (free for every game): breathing and
+-- the occasional look around, so the crew does not stand frozen.
+local IDLE_ANIMATIONS = {
+	"rbxassetid://507766666", -- Idle (breathing)
+	"rbxassetid://507766951", -- Idle (look around)
+}
+
+local function playIdle(model: Model)
+	local humanoid = model:FindFirstChildOfClass("Humanoid")
+	if not humanoid then
+		return
+	end
+	local animator = humanoid:FindFirstChildOfClass("Animator")
+	if animator and #animator:GetPlayingAnimationTracks() > 0 then
+		return
+	end
+	if not animator then
+		animator = Instance.new("Animator")
+		animator.Parent = humanoid
+	end
+	local animation = Instance.new("Animation")
+	animation.AnimationId = IDLE_ANIMATIONS[math.random(1, #IDLE_ANIMATIONS)]
+	local ok, track = pcall(function()
+		return (animator :: Animator):LoadAnimation(animation)
+	end)
+	if ok and track then
+		track.Looped = true
+		track:Play(0.3, 1, math.random(85, 110) / 100)
+		-- Start at a random point so two people never breathe in sync.
+		task.delay(0.1, function()
+			if track.Length > 0 then
+				track.TimePosition = math.random() * track.Length
+			end
+		end)
+	end
+end
+
 local function spawnOnSpot(record: SpotRecord)
 	local id = record.Spot:GetAttribute("CharacterId")
 	if type(id) ~= "string" or not Designs[id] then
@@ -215,7 +284,17 @@ local function spawnOnSpot(record: SpotRecord)
 	if not model then
 		return
 	end
-	standOn(model, record.Spot, id == "CorruptedSoldier")
+	local slumped = id == "CorruptedSoldier"
+	standOn(model, record.Spot, slumped)
+	if not slumped then
+		-- Animations can only load once the model is in the world, and the
+		-- model comes and goes with the story phase, so (re)start it then.
+		model.AncestryChanged:Connect(function()
+			if model:IsDescendantOf(workspace) then
+				playIdle(model)
+			end
+		end)
+	end
 	addTalkPrompt(model, id, record.Phase)
 	record.Model = model
 end

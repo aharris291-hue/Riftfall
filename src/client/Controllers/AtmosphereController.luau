@@ -8,10 +8,9 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local SoundService = game:GetService("SoundService")
 
-local Config = require(ReplicatedStorage.Shared.Config)
 local ClientState = require(script.Parent.Parent.ClientState)
+local AudioController = require(script.Parent.AudioController)
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local player = Players.LocalPlayer
@@ -22,17 +21,10 @@ local shakeUntil = 0
 local shakeIntensity = 0
 local rng = Random.new()
 
--- Plays a configured sound if an ID has been set (see Config.Sounds).
-local function makeSound(id: string, looped: boolean, volume: number): Sound?
-	if id == "" then
-		return nil
-	end
-	local sound = Instance.new("Sound")
-	sound.SoundId = id
-	sound.Looped = looped
-	sound.Volume = volume
-	sound.Parent = SoundService
-	return sound
+-- Sounds come from Config.Sounds and play through the Settings volume
+-- groups (see AudioController). Missing IDs are skipped.
+local function makeSound(key: string, group: string, looped: boolean, volume: number): Sound?
+	return AudioController.MakeSound(key, group, looped, volume)
 end
 
 -- Inside the temple and tunnel there is a roof, so no rain or lightning.
@@ -121,16 +113,16 @@ end
 
 function AtmosphereController.Init()
 	local rain = createRain()
-	local rainSound = makeSound(Config.Sounds.Rain, true, 0.4)
+	local rainSound = makeSound("Rain", "Ambience", true, 0.4)
 	if rainSound then
 		rainSound:Play()
 	end
-	local heartbeat = makeSound(Config.Sounds.Heartbeat, true, 0)
+	local heartbeat = makeSound("Heartbeat", "Effects", true, 0)
 	if heartbeat then
 		heartbeat:Play()
 	end
-	local thunder = makeSound(Config.Sounds.Thunder, false, 0.6)
-	local rumble = makeSound(Config.Sounds.Rumble, false, 0.7)
+	local thunder = makeSound("Thunder", "Effects", false, 0.6)
+	local rumble = makeSound("Rumble", "Effects", false, 0.7)
 
 	Remotes.CameraShake.OnClientEvent:Connect(function(duration: number, intensity: number)
 		if type(duration) ~= "number" or type(intensity) ~= "number" then

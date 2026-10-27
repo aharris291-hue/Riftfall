@@ -968,15 +968,20 @@ function SceneryKit.CliffLine(parent: Instance, from: Vector3, to: Vector3, rng:
 		local cf = CFrame.lookAt(pos, pos + direction) * CFrame.Angles(0, yaw, 0) * CFrame.new(0, h / 2 - 6, 0)
 		local size = Vector3.new(width + 4, h, depth)
 		if terrain then
-			terrain:FillBlock(cf, size, Enum.Material.Rock)
-			-- Rounded, weathered top and mossy ledges.
-			terrain:FillBall((cf * CFrame.new(0, h / 2, 0)).Position, math.min(width, depth) / 2, Enum.Material.Rock)
+			-- Upright cylinders and balls instead of tilted boxes: terrain
+			-- voxels turn tilted boxes into jagged steps, while round shapes
+			-- come out as smooth, weathered rock columns.
+			local radius = math.max(width, depth) / 2 + 2
+			local center = cf.Position
+			terrain:FillCylinder(CFrame.new(center), h, radius, Enum.Material.Rock)
+			terrain:FillBall(center + Vector3.new(0, h / 2, 0), radius * 0.95, Enum.Material.Rock)
+			-- A second, shorter column beside it so the wall is not a row of tubes.
+			local side = CFrame.new(center + direction * (width / 2) + Vector3.new(rng:NextNumber(-3, 3), -h * 0.15, 0))
+			terrain:FillCylinder(side, h * 0.7, radius * 0.8, Enum.Material.Rock)
+			terrain:FillBall(side.Position + Vector3.new(0, h * 0.35, 0), radius * 0.75, Enum.Material.Rock)
 			for _, y in ledges do
-				terrain:FillBlock(
-					cf * CFrame.new(0, y, 0),
-					size + Vector3.new(2, -size.Y + 4, 2),
-					Enum.Material.LeafyGrass
-				)
+				-- Mossy ledges: thin discs that stick out a little.
+				terrain:FillCylinder(CFrame.new(center + Vector3.new(0, y, 0)), 3, radius + 1.5, Enum.Material.LeafyGrass)
 			end
 		elseif not SceneryKit.Terrain then
 			local slab = decor(parent, {
@@ -999,7 +1004,7 @@ function SceneryKit.CliffLine(parent: Instance, from: Vector3, to: Vector3, rng:
 			end
 		end
 		if hasTree then
-			local topY = if terrain or SceneryKit.Terrain then h / 2 + math.min(width, depth) / 2 - 2 else h / 2
+			local topY = if terrain or SceneryKit.Terrain then h / 2 + (math.max(width, depth) / 2 + 2) * 0.95 - 2 else h / 2
 			SceneryKit.Tree(parent, (cf * CFrame.new(0, topY, 0)).Position, rng)
 		end
 		d += width
@@ -1014,10 +1019,12 @@ function SceneryKit.Mountain(parent: Instance, base: Vector3, terrain: Terrain?)
 		{ Vector3.new(130, 80, 100), 190, -6 },
 	}
 	if terrain then
+		-- Round tiers (smooth in terrain voxels), each topped with a dome.
 		for _, tier in tiers do
-			local cf = CFrame.new(base + Vector3.new(tier[3], tier[2], 0)) * CFrame.Angles(0, math.rad(tier[3]), 0)
-			terrain:FillBlock(cf, tier[1], Enum.Material.Rock)
-			terrain:FillBall(cf.Position + Vector3.new(0, tier[1].Y / 2, 0), tier[1].Z / 2, Enum.Material.Rock)
+			local center = base + Vector3.new(tier[3], tier[2], 0)
+			local radius = (tier[1].X + tier[1].Z) / 4
+			terrain:FillCylinder(CFrame.new(center), tier[1].Y, radius, Enum.Material.Rock)
+			terrain:FillBall(center + Vector3.new(0, tier[1].Y / 2, 0), tier[1].Z / 2, Enum.Material.Rock)
 		end
 		terrain:FillBall(base + Vector3.new(-6, 245, 0), 45, Enum.Material.Slate)
 		return

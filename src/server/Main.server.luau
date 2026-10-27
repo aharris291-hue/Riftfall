@@ -28,6 +28,7 @@ local EscapeService = require(Services.EscapeService)
 local GameService = require(Services.GameService)
 local GateService = require(Services.GateService)
 local DistractionService = require(Services.DistractionService)
+local SaveService = require(Services.SaveService)
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 
@@ -54,6 +55,9 @@ InventoryService.ThrowItem = function(itemId, root)
 	end
 end
 CharacterService.OnTalk = GateService.OnTalk
+CheckpointService.OnCheckpointReached(SaveService.OnCheckpoint)
+InteractionService.OnEvidenceFound = SaveService.OnEvidence
+GameService.OnFinished = SaveService.OnFinished
 -- The creature's first appearance: it crosses the trail far ahead, then
 -- vanishes. Players meet it properly in the ruins.
 StoryService.OnTrigger("Sighting", function()
@@ -75,6 +79,7 @@ StalkerService.Init()
 EscapeService.Init()
 GateService.Init()
 GameService.Init()
+SaveService.Init()
 
 StalkerService.SpawnPatrol()
 

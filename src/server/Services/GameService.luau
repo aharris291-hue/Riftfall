@@ -20,6 +20,9 @@ local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 
 local GameService = {}
 
+-- Set by Main: called with (player, seconds) when a player finishes the chapter.
+GameService.OnFinished = nil :: ((Player, number) -> ())?
+
 local function countNotes(): number
 	-- Evidence tags are shown like notes but counted separately.
 	local total = 0
@@ -50,6 +53,9 @@ local function finishRun(player: Player)
 	if data.Evidence.TagDaniel then
 		-- The optional discovery pays off: Kade gets his brother's tag back.
 		StoryService.PlayDialogue("DoneDaniel", player)
+	end
+	if GameService.OnFinished then
+		GameService.OnFinished(player, os.clock() - data.StartTime)
 	end
 	Remotes.RunComplete:FireClient(player, {
 		EvidenceFound = evidenceFound,

@@ -43,6 +43,12 @@
         },
         "ChangeOutfit": {
           "$className": "RemoteEvent"
+        },
+        "SaveSettings": {
+          "$className": "RemoteEvent"
+        },
+        "SettingsLoaded": {
+          "$className": "RemoteEvent"
         }
       }
     },
