@@ -1,7 +1,7 @@
 --!strict
 -- AtmosphereController: local-only mood effects. Rain around the camera,
 -- lightning flashes, camera shake, and a "danger" value that rises as the
--- Hollow gets close (the HUD turns it into a pulsing edge glow so the threat
+-- Rift Stalker gets close (the HUD turns it into a pulsing edge glow so the threat
 -- is readable, not a cheap surprise).
 
 local Players = game:GetService("Players")
@@ -69,7 +69,44 @@ local function createRain(): ParticleEmitter
 	return rain
 end
 
+-- A jagged bolt in the sky, briefly visible during a flash.
+local function drawBolt()
+	local camera = workspace.CurrentCamera
+	if not camera then
+		return
+	end
+	local look = camera.CFrame.LookVector
+	if math.abs(look.Y) > 0.98 then
+		return -- Looking straight up or down: no horizon to draw on.
+	end
+	local flat = Vector3.new(look.X, 0, look.Z).Unit
+	local side = Vector3.new(-flat.Z, 0, flat.X)
+	local point = camera.CFrame.Position + flat * 170 + side * rng:NextNumber(-90, 90) + Vector3.new(0, 150, 0)
+	local folder = Instance.new("Folder")
+	folder.Name = "LightningBolt"
+	while point.Y > 30 do
+		local nextPoint = point + Vector3.new(rng:NextNumber(-10, 10), -rng:NextNumber(14, 24), rng:NextNumber(-10, 10))
+		local segment = Instance.new("Part")
+		segment.Anchored = true
+		segment.CanCollide = false
+		segment.CanQuery = false
+		segment.CanTouch = false
+		segment.CastShadow = false
+		segment.Material = Enum.Material.Neon
+		segment.Color = Color3.fromRGB(210, 220, 255)
+		segment.Size = Vector3.new(0.9, 0.9, (nextPoint - point).Magnitude)
+		segment.CFrame = CFrame.lookAt((point + nextPoint) / 2, nextPoint)
+		segment.Parent = folder
+		point = nextPoint
+	end
+	folder.Parent = camera
+	task.delay(0.22, function()
+		folder:Destroy()
+	end)
+end
+
 local function flashLightning()
+	drawBolt()
 	local original = Lighting.OutdoorAmbient
 	local originalBrightness = Lighting.Brightness
 	for _ = 1, rng:NextInteger(1, 2) do
@@ -136,16 +173,16 @@ function AtmosphereController.Init()
 		)
 	end)
 
-	-- Danger meter: how close is the Hollow?
+	-- Danger meter: how close is the Rift Stalker?
 	task.spawn(function()
 		while true do
 			task.wait(0.15)
-			local hollow = workspace:FindFirstChild("Hollow")
+			local stalker = workspace:FindFirstChild("RiftStalker")
 			local character = player.Character
 			local myRoot = character and character:FindFirstChild("HumanoidRootPart")
-			local hollowRoot = hollow and hollow:FindFirstChild("HumanoidRootPart")
-			if myRoot and myRoot:IsA("BasePart") and hollowRoot and hollowRoot:IsA("BasePart") then
-				local distance = (myRoot.Position - hollowRoot.Position).Magnitude
+			local stalkerRoot = stalker and stalker:FindFirstChild("HumanoidRootPart")
+			if myRoot and myRoot:IsA("BasePart") and stalkerRoot and stalkerRoot:IsA("BasePart") then
+				local distance = (myRoot.Position - stalkerRoot.Position).Magnitude
 				ClientState.Danger = math.clamp(1 - (distance - 8) / 32, 0, 1)
 			else
 				ClientState.Danger = 0

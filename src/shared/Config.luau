@@ -26,9 +26,14 @@ Config.Flashlight = {
 	-- Battery drained per second while the light is on.
 	DrainPerSecond = 1.2,
 	StartingBattery = 60,
-	Range = 45,
-	Brightness = 3,
-	Angle = 55,
+	Range = 60,
+	Brightness = 6,
+	Angle = 45,
+	-- The visible beam ("light path") in front of the player.
+	BeamLength = 32,
+	BeamStartWidth = 0.6,
+	BeamEndWidth = 16,
+	BeamOpacity = 0.22, -- 0 = invisible beam, 1 = solid.
 }
 
 Config.Stalker = {
@@ -55,11 +60,44 @@ Config.Stalker = {
 	RepathInterval = 0.6,
 }
 
+-- Distraction flares: thrown in front of you, they burn and make noise the
+-- Rift Stalker can hear from far away, so it goes to investigate them.
+Config.Flare = {
+	ThrowDistance = 18,
+	BurnTime = 14,
+	NoiseRadius = 70,
+}
+
 Config.Escape = {
 	DebrisDamage = 30,
 	DebrisWarningTime = 1.3, -- Seconds the red warning circle shows before a rock lands.
 	DebrisInterval = 0.7,
 	HuntDelay = 4, -- Seconds after the escape starts before the Stalker is released.
+}
+
+-- Night lighting. Raise Brightness / Ambient / OutdoorAmbient to make the
+-- world brighter, lower them for a darker, scarier night. FogDensity is how
+-- thick the mist is (0 = none, 1 = very thick).
+Config.Lighting = {
+	ClockTime = 0.5,
+	Brightness = 1.6,
+	ExposureCompensation = 0.35,
+	Ambient = Color3.fromRGB(52, 56, 66),
+	OutdoorAmbient = Color3.fromRGB(96, 104, 118),
+	FogDensity = 0.3,
+	FogHaze = 1,
+	-- Colour grade (from Adam's Chapter 1 lighting script): more contrast,
+	-- less saturation and a cold blue tint give the stormy film look without
+	-- making the night darker.
+	Contrast = 0.15,
+	Saturation = -0.28,
+	Tint = Color3.fromRGB(225, 235, 255),
+	-- Lifts the mist toward the horizon so cliffs and the mountain read as
+	-- dark silhouettes against the storm sky.
+	AtmosphereOffset = 0.25,
+	BloomIntensity = 0.5,
+	BloomSize = 24,
+	BloomThreshold = 1.0,
 }
 
 Config.World = {

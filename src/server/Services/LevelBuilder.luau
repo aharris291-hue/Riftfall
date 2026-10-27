@@ -17,9 +17,18 @@
 --   Z  430 .. 460  Cliff (ladder truss up to Y 24)
 --   Z  460 .. 510  Rope bridge over a chasm
 --   Z  510 .. 545  Flare landing zone (end of demo)
+--
+-- Set dressing follows the "Chapter 1 environment" concept art (storm
+-- jungle, root-wrapped stone arches, muddy camp with overgrown 4x4s, the
+-- crashed helicopter, torches, cliffs and a mountain). The visual pieces are
+-- built by Util/SceneryKit; this file decides where they go.
 
 local CollectionService = game:GetService("CollectionService")
 local Lighting = game:GetService("Lighting")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+local SceneryKit = require(script.Parent.Parent.Util.SceneryKit)
 
 local LevelBuilder = {}
 
@@ -28,6 +37,8 @@ local LEVEL_NAME = "RiftfallLevel"
 type PartProps = { [string]: any }
 
 local currentLevel: Folder? = nil
+-- Smooth terrain is static, so it is filled on the first build only.
+local terrainFilled = false
 
 -- Creates an anchored part with sensible defaults, applying any overrides.
 local function makePart(parent: Instance, props: PartProps): Part
@@ -75,12 +86,20 @@ local function makePrompt(
 	return prompt
 end
 
-local function addLight(parent: Instance, color: Color3, range: number, brightness: number): PointLight
+-- Shadows are only worth it on the big warm light sources (they cost
+-- performance), so they are opt-in.
+local function addLight(
+	parent: Instance,
+	color: Color3,
+	range: number,
+	brightness: number,
+	shadows: boolean?
+): PointLight
 	local light = Instance.new("PointLight")
 	light.Color = color
 	light.Range = range
 	light.Brightness = brightness
-	light.Shadows = false
+	light.Shadows = shadows == true
 	light.Parent = parent
 	return light
 end
@@ -111,33 +130,7 @@ end
 ------------------------------------------------------------------------------
 
 local function makeTree(parent: Instance, position: Vector3, rng: Random)
-	local height = rng:NextNumber(18, 32)
-	local radius = rng:NextNumber(1.4, 2.8)
-	local model = Instance.new("Model")
-	model.Name = "Tree"
-	makePart(model, {
-		Name = "Trunk",
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(height, radius * 2, radius * 2),
-		CFrame = CFrame.new(position + Vector3.new(0, height / 2, 0)) * CFrame.Angles(0, 0, math.rad(90)),
-		Material = Enum.Material.Wood,
-		Color = Color3.fromRGB(58, 44, 34),
-	})
-	for i = 1, 2 do
-		local size = rng:NextNumber(10, 16)
-		makePart(model, {
-			Name = "Canopy",
-			Shape = Enum.PartType.Ball,
-			Size = Vector3.new(size, size, size),
-			Position = position + Vector3.new(rng:NextNumber(-3, 3), height - 2 + i * 3, rng:NextNumber(-3, 3)),
-			Material = Enum.Material.LeafyGrass,
-			Color = Color3.fromRGB(28, 52 + rng:NextInteger(0, 20), 30),
-			CanCollide = false,
-			CanQuery = false,
-			CastShadow = false,
-		})
-	end
-	model.Parent = parent
+	SceneryKit.Tree(parent, position, rng)
 end
 
 local function makeRock(parent: Instance, position: Vector3, size: Vector3, rng: Random)
@@ -244,6 +237,46 @@ local function makeCheckpoint(parent: Instance, name: string, order: number, pos
 	zone:SetAttribute("SpawnPosition", pad.Position + Vector3.new(0, 3.5, 0))
 end
 
+-- Where a story character stands. CharacterService spawns the character on
+-- it; Phase limits it to "Explore" (before the door opens) or "Escape"
+-- (after), or "Any".
+local function makeCharacterSpot(
+	parent: Instance,
+	characterId: string,
+	position: Vector3,
+	lookAt: Vector3,
+	phase: string
+)
+	local flatTarget = Vector3.new(lookAt.X, position.Y, lookAt.Z)
+	local spot = makeZone(
+		parent,
+		"Spot_" .. characterId .. "_" .. phase,
+		CFrame.lookAt(position, flatTarget),
+		Vector3.new(1, 1, 1),
+		"CharacterSpot"
+	)
+	spot:SetAttribute("CharacterId", characterId)
+	spot:SetAttribute("Phase", phase)
+end
+
+-- An expedition ID tag lying on the ground: optional evidence with a small
+-- glint so a careful explorer can spot it.
+local function makeEvidence(parent: Instance, noteId: string, position: Vector3)
+	local tag = makePart(parent, {
+		Name = noteId,
+		Size = Vector3.new(0.5, 0.06, 0.8),
+		CFrame = CFrame.new(position) * CFrame.Angles(0, math.rad(35), 0),
+		Material = Enum.Material.Metal,
+		Color = Color3.fromRGB(190, 196, 204),
+		Reflectance = 0.3,
+		CanCollide = false,
+	})
+	tag:SetAttribute("NoteId", noteId)
+	addLight(tag, Color3.fromRGB(220, 230, 255), 5, 0.7)
+	makePrompt(tag, "Examine", "ID tag")
+	CollectionService:AddTag(tag, "Evidence")
+end
+
 local function makeStoryTrigger(parent: Instance, triggerId: string, cframe: CFrame, size: Vector3)
 	local zone = makeZone(parent, "Trigger_" .. triggerId, cframe, size, "StoryTrigger")
 	zone:SetAttribute("TriggerId", triggerId)
@@ -281,31 +314,8 @@ local function trailCenterX(z: number): number
 	return math.sin(z / 28) * 9
 end
 
-local function buildGroundAndBounds(level: Folder)
-	local ground = Instance.new("Folder")
-	ground.Name = "Ground"
-	ground.Parent = level
-
-	makePart(ground, {
-		Name = "JungleFloor",
-		Size = Vector3.new(130, 2, 465),
-		Position = Vector3.new(0, -1, 212.5),
-		Material = Enum.Material.Grass,
-		Color = Color3.fromRGB(46, 66, 38),
-	})
-	-- Dirt trail segments that follow trailCenterX.
-	for z = -10, 205, 10 do
-		makePart(ground, {
-			Name = "Trail",
-			Size = Vector3.new(9, 0.2, 11),
-			CFrame = CFrame.new(trailCenterX(z), 0.05, z) * CFrame.Angles(0, math.atan(math.cos(z / 28) * 9 / 28), 0),
-			Material = Enum.Material.Mud,
-			Color = Color3.fromRGB(78, 62, 46),
-			CanCollide = false,
-		})
-	end
-
-	-- Invisible boundary walls so players cannot walk off the map.
+-- Invisible boundary walls so players cannot walk off the map.
+local function buildBounds(ground: Folder)
 	local boundary = Color3.new(0, 0, 0)
 	makeWall(
 		ground,
@@ -331,6 +341,38 @@ local function buildGroundAndBounds(level: Folder)
 		1
 	)
 	makeWall(ground, Vector3.new(27, 0, 300), Vector3.new(65, 0, 300), 60, 2, Enum.Material.SmoothPlastic, boundary, 1)
+end
+
+local function buildGroundAndBounds(level: Folder)
+	local ground = Instance.new("Folder")
+	ground.Name = "Ground"
+	ground.Parent = level
+
+	-- In Roblox the ground is smooth terrain (see buildTerrain); the flat
+	-- floor and trail parts are only the fallback for the offline tests.
+	if SceneryKit.Terrain then
+		buildBounds(ground)
+		return
+	end
+	makePart(ground, {
+		Name = "JungleFloor",
+		Size = Vector3.new(130, 2, 465),
+		Position = Vector3.new(0, -1, 212.5),
+		Material = Enum.Material.Grass,
+		Color = Color3.fromRGB(46, 66, 38),
+	})
+	-- Dirt trail segments that follow trailCenterX.
+	for z = -10, 205, 10 do
+		makePart(ground, {
+			Name = "Trail",
+			Size = Vector3.new(9, 0.2, 11),
+			CFrame = CFrame.new(trailCenterX(z), 0.05, z) * CFrame.Angles(0, math.atan(math.cos(z / 28) * 9 / 28), 0),
+			Material = Enum.Material.Mud,
+			Color = Color3.fromRGB(78, 62, 46),
+			CanCollide = false,
+		})
+	end
+	buildBounds(ground)
 end
 
 local function buildJungle(level: Folder, rng: Random)
@@ -359,7 +401,7 @@ local function buildJungle(level: Folder, rng: Random)
 
 	local placed = 0
 	local attempts = 0
-	while placed < 170 and attempts < 2000 do
+	while placed < 125 and attempts < 2000 do
 		attempts += 1
 		local x = rng:NextNumber(-62, 62)
 		local z = rng:NextNumber(-18, 212)
@@ -372,6 +414,19 @@ local function buildJungle(level: Folder, rng: Random)
 	for z = 215, 295, 12 do
 		makeTree(jungle, Vector3.new(-58 + rng:NextNumber(-2, 2), 0, z), rng)
 		makeTree(jungle, Vector3.new(58 + rng:NextNumber(-2, 2), 0, z), rng)
+	end
+	-- Ferns carpet the jungle floor, thickest along the trail edges.
+	local ferns = 0
+	attempts = 0
+	while ferns < 110 and attempts < 1500 do
+		attempts += 1
+		local z = rng:NextNumber(-15, 210)
+		local side = if rng:NextNumber() < 0.5 then -1 else 1
+		local x = trailCenterX(z) + side * rng:NextNumber(6, 40)
+		if math.abs(x) < 62 and not ((Vector2.new(x, z) - Vector2.new(0, 185)).Magnitude < 22) then
+			SceneryKit.Fern(jungle, Vector3.new(x, 0, z), rng)
+			ferns += 1
+		end
 	end
 	-- Scattered bushes of tall grass along the trail edges (also hideable).
 	makeGrassPatch(jungle, Vector3.new(trailCenterX(120) + 8, 0, 120), Vector2.new(6, 8), rng)
@@ -394,37 +449,15 @@ local function buildCrashSite(level: Folder, rng: Random)
 	spawn.Color = Color3.fromRGB(60, 60, 64)
 	spawn.Parent = site
 
-	-- Wrecked helicopter (placeholder shapes).
-	local wreck = Instance.new("Model")
-	wreck.Name = "HelicopterWreck"
-	local hull = Color3.fromRGB(70, 78, 70)
-	makePart(wreck, {
-		Name = "Body",
-		Size = Vector3.new(9, 7, 16),
-		CFrame = CFrame.new(-14, 3, 16) * CFrame.Angles(0, math.rad(25), math.rad(18)),
-		Material = Enum.Material.CorrodedMetal,
-		Color = hull,
-	})
-	makePart(wreck, {
-		Name = "Tail",
-		Size = Vector3.new(2, 2, 14),
-		CFrame = CFrame.new(-19, 2, 30) * CFrame.Angles(math.rad(-8), math.rad(40), 0),
-		Material = Enum.Material.CorrodedMetal,
-		Color = hull,
-	})
-	makePart(wreck, {
-		Name = "Rotor",
-		Size = Vector3.new(26, 0.3, 1.2),
-		CFrame = CFrame.new(-8, 0.4, 8) * CFrame.Angles(0, math.rad(60), math.rad(4)),
-		Material = Enum.Material.Metal,
-		Color = Color3.fromRGB(40, 40, 40),
-	})
-	local fireSource = makePart(wreck, {
+	-- The crashed helicopter, still smouldering.
+	local firePoint = SceneryKit.Helicopter(site, CFrame.new(-15, 0, 18) * CFrame.Angles(0, math.rad(25), 0), rng)
+	local fireSource = makePart(site, {
 		Name = "FireSource",
 		Size = Vector3.new(2, 1, 2),
-		Position = Vector3.new(-13, 5.5, 18),
+		Position = firePoint + Vector3.new(1, 0, -2),
 		Transparency = 1,
 		CanCollide = false,
+		CanQuery = false,
 	})
 	local fire = Instance.new("Fire")
 	fire.Size = 6
@@ -437,7 +470,12 @@ local function buildCrashSite(level: Folder, rng: Random)
 	smoke.Color = Color3.fromRGB(40, 40, 40)
 	smoke.Parent = fireSource
 	addLight(fireSource, Color3.fromRGB(255, 140, 60), 30, 2)
-	wreck.Parent = site
+
+	-- An abandoned expedition 4x4, headlights still on, lighting the way
+	-- into the jungle.
+	SceneryKit.Truck(site, CFrame.lookAt(Vector3.new(17, 0, 24), Vector3.new(9, 0, 56)), rng)
+	SceneryKit.MudPatch(site, Vector3.new(4, 0, 18), Vector2.new(26, 22), rng)
+	SceneryKit.Torch(site, Vector3.new(-3, 0, 30))
 
 	-- Supply crates.
 	for i, pos in { Vector3.new(8, 1.5, 14), Vector3.new(11, 1.5, 18), Vector3.new(9, 4.5, 15) } do
@@ -450,6 +488,19 @@ local function buildCrashSite(level: Folder, rng: Random)
 		})
 	end
 	makePickup(site, "Battery", "Battery", Vector3.new(6, 1, 19), Color3.fromRGB(120, 200, 255))
+
+	-- Serra's hologram projects from a crashed comms drone near the spawn.
+	local projector = makePart(site, {
+		Name = "HoloProjector",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(0.3, 3.2, 3.2),
+		CFrame = CFrame.new(6, 0.15, 8) * CFrame.Angles(0, 0, math.rad(90)),
+		Material = Enum.Material.Neon,
+		Color = Color3.fromRGB(70, 220, 255),
+		CanCollide = false,
+	})
+	addLight(projector, Color3.fromRGB(70, 220, 255), 12, 1.2)
+	makeCharacterSpot(site, "Serra", Vector3.new(6, 0.3, 8), Vector3.new(0, 0, 2), "Any")
 
 	-- A rusted sign pointing the way.
 	local post = makePart(site, {
@@ -506,6 +557,10 @@ local function buildTrail(level: Folder)
 	})
 	makeNote(trail, "Scrawl", "Scratched message", treePos + Vector3.new(4, 2.1, 3))
 	makeStoryTrigger(trail, "ClawMarks", CFrame.new(trailCenterX(z), 4, z), Vector3.new(24, 8, 14))
+	-- First sighting: the creature crosses the trail ahead (StalkerService).
+	makeStoryTrigger(trail, "Sighting", CFrame.new(trailCenterX(135), 4, 135), Vector3.new(30, 8, 10))
+	-- Optional evidence a little off the path.
+	makeEvidence(trail, "TagOkafor", Vector3.new(trailCenterX(88) + 13, 0.3, 88))
 end
 
 local function buildCamp(level: Folder, rng: Random)
@@ -513,24 +568,30 @@ local function buildCamp(level: Folder, rng: Random)
 	camp.Name = "Camp"
 	camp.Parent = level
 
-	local tentColor = Color3.fromRGB(96, 104, 70)
-	for _, t in { { -12, 178, 30 }, { 12, 192, -40 }, { -9, 198, 160 } } do
-		makePart(camp, {
-			Name = "Tent",
-			Size = Vector3.new(8, 5, 8),
-			CFrame = CFrame.new(t[1], 2.5, t[2]) * CFrame.Angles(0, math.rad(t[3]), 0),
-			Shape = Enum.PartType.Block,
-			Material = Enum.Material.Fabric,
-			Color = tentColor,
-		})
-		makePart(camp, {
-			Name = "TentRoof",
-			Size = Vector3.new(8.4, 4, 8.4),
-			CFrame = CFrame.new(t[1], 6, t[2]) * CFrame.Angles(0, math.rad(t[3] + 45), 0) * CFrame.Angles(0, 0, 0),
-			Material = Enum.Material.Fabric,
-			Color = tentColor:Lerp(Color3.new(0, 0, 0), 0.2),
-			Shape = Enum.PartType.Block,
-		})
+	-- Muddy ground churned up by boots and tyres.
+	SceneryKit.MudPatch(camp, Vector3.new(0, 0, 186), Vector2.new(44, 38), rng)
+
+	-- A-frame tents (one torn open), facing the campfire.
+	local fireSpot = Vector3.new(2, 0, 186)
+	for i, t in { { -12, 178 }, { 12, 194 }, { -9, 199 } } do
+		local pos = Vector3.new(t[1], 0, t[2])
+		SceneryKit.Tent(camp, CFrame.lookAt(pos, fireSpot), SceneryKit.Colors.Canvas, i == 2)
+	end
+
+	-- Two overgrown 4x4s parked at the edges, headlights on.
+	SceneryKit.Truck(camp, CFrame.lookAt(Vector3.new(-22, 0, 201), Vector3.new(-2, 0, 184)), rng)
+	SceneryKit.Truck(camp, CFrame.lookAt(Vector3.new(21, 0, 176), Vector3.new(2, 0, 190)), rng)
+
+	-- Equipment cases and crates.
+	SceneryKit.Cases(camp, CFrame.new(-16, 0, 172) * CFrame.Angles(0, 0.4, 0), rng)
+	SceneryKit.Cases(camp, CFrame.new(14, 0, 203) * CFrame.Angles(0, -0.3, 0), rng)
+	SceneryKit.Cases(camp, CFrame.new(-2, 0, 204) * CFrame.Angles(0, 0.1, 0), rng)
+
+	-- Torches around the camp keep it readable at night.
+	for _, pos in
+		{ Vector3.new(-7, 0, 168), Vector3.new(10, 0, 168), Vector3.new(-18, 0, 190), Vector3.new(17, 0, 196) }
+	do
+		SceneryKit.Torch(camp, pos)
 	end
 
 	-- Campfire (cold ashes with a dim ember glow).
@@ -541,7 +602,7 @@ local function buildCamp(level: Folder, rng: Random)
 		Material = Enum.Material.Cobblestone,
 		Color = Color3.fromRGB(40, 36, 34),
 	})
-	addLight(fire, Color3.fromRGB(255, 90, 40), 14, 1.2)
+	addLight(fire, Color3.fromRGB(255, 90, 40), 14, 1.2, true)
 
 	local tableTop = makePart(camp, {
 		Name = "FieldTable",
@@ -573,12 +634,17 @@ local function buildCamp(level: Folder, rng: Random)
 		Material = Enum.Material.Neon,
 		Color = Color3.fromRGB(255, 200, 120),
 	})
-	addLight(lantern, Color3.fromRGB(255, 200, 120), 16, 1.2)
+	addLight(lantern, Color3.fromRGB(255, 170, 80), 25, 2.5, true)
 
 	makeNote(camp, "Journal", "Rourke's journal", tableTop.Position + Vector3.new(-1, 0.25, 0))
 	makePickup(camp, "Bandage", "Bandage", Vector3.new(12, 1, 184), Color3.fromRGB(230, 225, 210))
 	makePickup(camp, "Battery", "Battery", Vector3.new(-14, 1, 186), Color3.fromRGB(120, 200, 255))
+	makePickup(camp, "Flare", "Flare", Vector3.new(9, 1, 207), Color3.fromRGB(255, 70, 50))
+	-- Inside the torn tent.
+	makeEvidence(camp, "TagHale", Vector3.new(12, 0.3, 195))
+	makeStoryTrigger(camp, "Gate", CFrame.new(4, 4, 207), Vector3.new(40, 8, 6))
 	makeCheckpoint(camp, "Camp", 1, Vector3.new(6, 0, 174))
+	makeCharacterSpot(camp, "Kade", Vector3.new(-3, 0, 181), Vector3.new(0, 0, 168), "Explore")
 	makeStoryTrigger(camp, "Camp", CFrame.new(0, 4, 172), Vector3.new(40, 8, 10))
 
 	-- Scattered gear.
@@ -592,6 +658,65 @@ local function buildCamp(level: Folder, rng: Random)
 			Color = Color3.fromRGB(80, 70, 60),
 		})
 	end
+end
+
+-- The rusted iron gate in the ruins arch, chained shut. Each door is a Model
+-- whose pivot is its hinge; GateService swings them by SwingAngle degrees.
+local function buildGate(parent: Instance, leftHinge: Vector3, rightHinge: Vector3)
+	local gate = Instance.new("Model")
+	gate.Name = "RuinsGate"
+	local iron = Color3.fromRGB(70, 52, 42)
+	local width = (rightHinge - leftHinge).Magnitude / 2
+	local height = 9
+	for _, side in { { leftHinge, 1, -100 }, { rightHinge, -1, 100 } } do
+		local hinge: Vector3, dir: number, angle: number = side[1], side[2], side[3]
+		local door = Instance.new("Model")
+		door.Name = if dir == 1 then "DoorLeft" else "DoorRight"
+		local function bar(size: Vector3, offset: Vector3)
+			makePart(door, {
+				Name = "Bar",
+				Size = size,
+				CFrame = CFrame.new(hinge + offset),
+				Material = Enum.Material.CorrodedMetal,
+				Color = iron,
+			})
+		end
+		for _, y in { 0.6, height / 2, height - 0.4 } do
+			bar(Vector3.new(width, 0.4, 0.3), Vector3.new(dir * width / 2, y, 0))
+		end
+		local count = math.floor(width / 0.9)
+		for i = 0, count do
+			local x = dir * (0.2 + i * (width - 0.4) / count)
+			bar(Vector3.new(0.2, height, 0.2), Vector3.new(x, height / 2, 0))
+		end
+		door.WorldPivot = CFrame.new(hinge)
+		door:SetAttribute("SwingAngle", angle)
+		door.Parent = gate
+	end
+	-- Chain and padlock where the doors meet.
+	local middle = (leftHinge + rightHinge) / 2
+	local chain = makePart(gate, {
+		Name = "GateChain",
+		Size = Vector3.new(2.2, 1.6, 0.5),
+		CFrame = CFrame.new(middle + Vector3.new(0, 4.5, -0.35)),
+		Material = Enum.Material.DiamondPlate,
+		Color = Color3.fromRGB(150, 150, 155),
+		CanCollide = false,
+	})
+	makePrompt(chain, "Cut chain", "Chained gate", 1.2)
+	CollectionService:AddTag(chain, "ChainedGate")
+	local padlock = makePart(gate, {
+		Name = "Padlock",
+		Size = Vector3.new(0.6, 0.8, 0.3),
+		CFrame = CFrame.new(middle + Vector3.new(0, 3.5, -0.6)),
+		Material = Enum.Material.Metal,
+		Color = Color3.fromRGB(180, 150, 70),
+		CanCollide = false,
+	})
+	padlock:SetAttribute("ChainPiece", true)
+	-- A lamp hung on the gate so it is easy to find at night (fairness).
+	addLight(chain, Color3.fromRGB(255, 200, 140), 12, 0.8)
+	gate.Parent = parent
 end
 
 local function buildRuins(level: Folder, rng: Random)
@@ -621,13 +746,65 @@ local function buildRuins(level: Folder, rng: Random)
 	}
 	for _, pos in pillarSpots do
 		local h = rng:NextNumber(6, 16)
-		makePart(ruins, {
+		local pillar = makePart(ruins, {
 			Name = "Pillar",
 			Size = Vector3.new(4, h, 4),
 			Position = pos + Vector3.new(0, h / 2, 0),
 			Material = Enum.Material.Slate,
 			Color = stone,
 		})
+		SceneryKit.MossCap(ruins, pillar)
+		SceneryKit.DrapeRoots(ruins, pos + Vector3.new(0, h, 0), 0.4, rng:NextInteger(1, 3), rng)
+	end
+
+	-- Moss-covered stone archways strangled by roots: a great gate where the
+	-- trail enters the ruins, one framing the temple doorway, and broken
+	-- arches along the sides.
+	SceneryKit.Arch(ruins, CFrame.new(4, 0.4, 214), { Width = 18, Height = 12, Rng = rng })
+	SceneryKit.Arch(ruins, CFrame.new(0, 0.4, 294), { Width = 14, Height = 11, Rng = rng })
+	SceneryKit.Arch(
+		ruins,
+		CFrame.new(-46, 0.4, 262) * CFrame.Angles(0, math.rad(90), 0),
+		{ Width = 13, Height = 10, Broken = true, Rng = rng }
+	)
+	SceneryKit.Arch(
+		ruins,
+		CFrame.new(46, 0.4, 245) * CFrame.Angles(0, math.rad(90), 0),
+		{ Width = 13, Height = 9, Broken = true, Rng = rng }
+	)
+	-- A cold blue Rift glow hanging in the temple arch (from Adam's lighting
+	-- script): the first hint that something unnatural waits inside.
+	local riftGlow = makePart(ruins, {
+		Name = "RiftGlow",
+		Size = Vector3.new(1, 1, 1),
+		Position = Vector3.new(0, 8, 296),
+		Material = Enum.Material.Neon,
+		Color = Color3.fromRGB(100, 200, 255),
+		CanCollide = false,
+		CanQuery = false,
+		CastShadow = false,
+	})
+	addLight(riftGlow, Color3.fromRGB(80, 180, 255), 30, 1.5, true)
+	for _, pos in
+		{ Vector3.new(-9, 0.4, 211), Vector3.new(17, 0.4, 211), Vector3.new(-12, 0.4, 291), Vector3.new(12, 0.4, 291) }
+	do
+		SceneryKit.Torch(ruins, pos)
+	end
+	for _ = 1, 18 do
+		SceneryKit.Fern(ruins, Vector3.new(rng:NextNumber(-44, 44), 0.4, rng:NextNumber(216, 296)), rng)
+	end
+
+	-- Ancient stairs climbing out of the valley toward the cliffs (scenery,
+	-- beyond the boundary).
+	for _, side in { -1, 1 } do
+		local foot = Vector3.new(side * 68, 0, 262)
+		SceneryKit.Stairs(ruins, CFrame.lookAt(foot, foot + Vector3.new(side, 0, 0)), 18, 9, rng)
+		-- Torches stand on the stair edge, on top of the step below them.
+		for i = 0, 2 do
+			local along = 2 + i * 12
+			local stepTop = math.floor(along / 1.8) + 1
+			SceneryKit.Torch(ruins, foot + Vector3.new(side * along, stepTop, 3.8), 4)
+		end
 	end
 	-- Low crumbling walls.
 	makeWall(ruins, Vector3.new(-22, 0, 246), Vector3.new(-8, 0, 250), 4, 2, Enum.Material.Slate, stone)
@@ -652,6 +829,20 @@ local function buildRuins(level: Folder, rng: Random)
 
 	makePickup(ruins, "Bandage", "Bandage", Vector3.new(-38, 1, 222), Color3.fromRGB(230, 225, 210))
 
+	-- A dormant Corrupted Soldier slumped against a pillar (a warning of
+	-- what the Rift does to people; it wakes up in a later milestone).
+	makeCharacterSpot(ruins, "CorruptedSoldier", Vector3.new(-27.2, 0.4, 258), Vector3.new(0, 0.4, 262), "Any")
+	local soldierReader = makePart(ruins, {
+		Name = "SoldierReader",
+		Size = Vector3.new(4, 5, 4),
+		Position = Vector3.new(-25.5, 2.5, 258),
+		Transparency = 1,
+		CanCollide = false,
+	})
+	soldierReader:SetAttribute("NoteId", "Soldier")
+	makePrompt(soldierReader, "Examine", "Fallen soldier")
+	CollectionService:AddTag(soldierReader, "Note")
+
 	-- Stalker patrol route (invisible markers, visited in order).
 	local patrol = {
 		Vector3.new(0, 3, 230),
@@ -666,7 +857,39 @@ local function buildRuins(level: Folder, rng: Random)
 		marker:SetAttribute("Order", i)
 	end
 	makeZone(ruins, "StalkerSpawn", CFrame.new(0, 4, 292), Vector3.new(1, 1, 1), "StalkerSpawn")
-	makeStoryTrigger(ruins, "Ruins", CFrame.new(0, 4, 214), Vector3.new(100, 8, 8))
+	makeStoryTrigger(ruins, "Ruins", CFrame.new(0, 4, 224), Vector3.new(100, 8, 8))
+	makePickup(ruins, "Flare", "Flare", Vector3.new(-40, 1, 272), Color3.fromRGB(255, 70, 50))
+	-- Kade's brother's tag, under the western broken arch (a risky detour).
+	makeEvidence(ruins, "TagDaniel", Vector3.new(-46, 0.45, 262))
+
+	-- Crumbling perimeter wall: the ruins can only be entered through the
+	-- chained gate in the great arch (GateService).
+	local wallZ = 214
+	for _, span in { { -65, -8.4 }, { 16.4, 65 } } do
+		local x = span[1]
+		while x < span[2] - 0.1 do
+			local w = math.min(rng:NextNumber(6, 10), span[2] - x)
+			local h = rng:NextNumber(5, 8)
+			local segment = makePart(ruins, {
+				Name = "RuinWall",
+				Size = Vector3.new(w, h, 2.4),
+				CFrame = CFrame.new(x + w / 2, h / 2, wallZ),
+				Material = Enum.Material.Slate,
+				Color = stone,
+			})
+			SceneryKit.MossCap(ruins, segment)
+			x += w
+		end
+		-- Invisible, taller collider so the wall can't be jumped.
+		makePart(ruins, {
+			Name = "RuinWallBlocker",
+			Size = Vector3.new(span[2] - span[1], 30, 2.4),
+			CFrame = CFrame.new((span[1] + span[2]) / 2, 15, wallZ),
+			Transparency = 1,
+			CastShadow = false,
+		})
+	end
+	buildGate(ruins, Vector3.new(-5, 0.4, wallZ), Vector3.new(13, 0.4, wallZ))
 end
 
 local function buildTemple(level: Folder)
@@ -692,6 +915,23 @@ local function buildTemple(level: Folder)
 		Material = mat,
 		Color = stone,
 	})
+	-- Stepped upper tiers make the temple read as an ancient ziggurat, with
+	-- roots and moss pouring over it.
+	for i, size in { Vector3.new(46, 6, 52), Vector3.new(34, 6, 40), Vector3.new(20, 5, 26) } do
+		local tier = makePart(temple, {
+			Name = "Tier" .. i,
+			Size = size,
+			Position = Vector3.new(0, height + 3 + (i - 0.5) * 6 - (if i == 3 then 0.5 else 0), 332),
+			Material = mat,
+			Color = stone,
+		})
+		SceneryKit.MossCap(temple, tier)
+	end
+	local rootRng = Random.new(42)
+	for _, x in { -22, -12, 12, 22 } do
+		SceneryKit.DrapeRoots(temple, Vector3.new(x, height + 2, 299), 0.4, 2, rootRng)
+	end
+
 	-- Side walls.
 	makePart(temple, {
 		Name = "WallWest",
@@ -844,8 +1084,10 @@ local function buildTemple(level: Folder)
 	)
 	makeNote(temple, "Recording", "Torn page", altar.Position + Vector3.new(-1.2, 1.6, 0))
 	makePickup(temple, "Battery", "Battery", Vector3.new(20, 1, 318), Color3.fromRGB(120, 200, 255))
+	makeEvidence(temple, "TagReyes", Vector3.new(21, 0.45, 344))
 
 	makeStoryTrigger(temple, "Temple", CFrame.new(0, 4, 308), Vector3.new(46, 8, 8))
+	makeCharacterSpot(temple, "Lira", Vector3.new(-14, 0.4, 322), Vector3.new(0, 0.4, 308), "Explore")
 	-- Gate checkpoint is only unlocked once the puzzle is solved (see PuzzleService).
 	makeCheckpoint(temple, "Temple", 2, Vector3.new(0, 0.4, 306))
 	local escapeCheckpoint =
@@ -1037,6 +1279,9 @@ local function buildEscape(level: Folder, rng: Random)
 	sparks.Size = 3
 	sparks.Parent = flare
 	makeZone(escape, "EndZone", CFrame.new(0, deckY + 4, 528), Vector3.new(26, 8, 24), "EndZone")
+	-- Kade and Lira wait at the flare once the escape begins.
+	makeCharacterSpot(escape, "Kade", Vector3.new(-5, deckY, 524), Vector3.new(0, deckY, 505), "Escape")
+	makeCharacterSpot(escape, "Lira", Vector3.new(5, deckY, 524), Vector3.new(0, deckY, 505), "Escape")
 
 	-- Invisible walls around the cliff top and far ledge.
 	local clear = Color3.new(0, 0, 0)
@@ -1104,35 +1349,120 @@ local function buildEscape(level: Folder, rng: Random)
 	})
 end
 
+-- Smooth terrain for the valley floor: real grass that sways, mud on the
+-- trail and in the camp, plain ground under the paved and indoor areas.
+-- Returns the terrain only on the build that should fill static shapes.
+local function fillTerrain(terrain: Terrain)
+	SceneryKit.FillValley(terrain, Random.new(7))
+	for z = -10, 205, 6 do
+		SceneryKit.PaintGround(terrain, Vector3.new(trailCenterX(z), 0, z), Vector2.new(8, 6), Enum.Material.Mud)
+	end
+	-- No grass blades poking through the courtyard, temple or tunnel floors.
+	for _, area in { { 0, 257, 92, 88 }, { 0, 330, 54, 64 }, { 0, 400, 32, 92 } } do
+		SceneryKit.PaintGround(
+			terrain,
+			Vector3.new(area[1], 0, area[2]),
+			Vector2.new(area[3], area[4]),
+			Enum.Material.Ground
+		)
+	end
+end
+
+-- If filling the terrain ever fails, the level falls back to a part floor
+-- instead of leaving players to fall forever.
+local function buildTerrain(): Terrain?
+	local terrain = workspace:FindFirstChildOfClass("Terrain")
+	if not terrain then
+		SceneryKit.Terrain = nil
+		return nil
+	end
+	if terrainFilled then
+		SceneryKit.Terrain = terrain
+		return nil
+	end
+	local ok, err = pcall(fillTerrain, terrain)
+	if not ok then
+		warn("[LevelBuilder] Terrain fill failed, using a part floor instead:", err)
+		terrain:Clear()
+		SceneryKit.Terrain = nil
+		return nil
+	end
+	terrainFilled = true
+	SceneryKit.Terrain = terrain
+	return terrain
+end
+
+-- Cliffs on both sides of the valley and the mountain to the north. All of
+-- it is outside the playable area. Uses its own random seed so cliff-top
+-- trees match the rock on every rebuild.
+local function buildBackdrop(level: Folder, terrain: Terrain?)
+	local rng = Random.new(99)
+	local backdrop = Instance.new("Folder")
+	backdrop.Name = "Backdrop"
+	backdrop.Parent = level
+	SceneryKit.CliffLine(backdrop, Vector3.new(-88, 0, -70), Vector3.new(-80, 0, 600), rng, terrain)
+	SceneryKit.CliffLine(backdrop, Vector3.new(84, 0, -70), Vector3.new(92, 0, 600), rng, terrain)
+	SceneryKit.CliffLine(backdrop, Vector3.new(-90, 0, -48), Vector3.new(90, 0, -48), rng, terrain)
+	SceneryKit.Mountain(backdrop, Vector3.new(10, 0, 680), terrain)
+end
+
 ------------------------------------------------------------------------------
 -- Lighting
 ------------------------------------------------------------------------------
 
 function LevelBuilder.SetupLighting()
-	Lighting.ClockTime = 0.5
-	Lighting.Brightness = 0.6
-	Lighting.Ambient = Color3.fromRGB(18, 20, 26)
-	Lighting.OutdoorAmbient = Color3.fromRGB(40, 46, 56)
-	Lighting.EnvironmentDiffuseScale = 0.2
-	Lighting.EnvironmentSpecularScale = 0.2
+	local L = Config.Lighting
+	Lighting.ClockTime = L.ClockTime
+	Lighting.Brightness = L.Brightness
+	Lighting.ExposureCompensation = L.ExposureCompensation
+	Lighting.Ambient = L.Ambient
+	Lighting.OutdoorAmbient = L.OutdoorAmbient
+	Lighting.EnvironmentDiffuseScale = 0.4
+	Lighting.EnvironmentSpecularScale = 0.3
 	Lighting.GlobalShadows = true
 
-	if not Lighting:FindFirstChildOfClass("Atmosphere") then
-		local atmosphere = Instance.new("Atmosphere")
-		atmosphere.Density = 0.42
-		atmosphere.Offset = 0.1
-		atmosphere.Color = Color3.fromRGB(70, 84, 80)
-		atmosphere.Decay = Color3.fromRGB(30, 36, 40)
-		atmosphere.Glare = 0
-		atmosphere.Haze = 2
-		atmosphere.Parent = Lighting
-	end
-	if not Lighting:FindFirstChildOfClass("ColorCorrectionEffect") then
-		local grade = Instance.new("ColorCorrectionEffect")
-		grade.Saturation = -0.25
-		grade.Contrast = 0.1
-		grade.TintColor = Color3.fromRGB(220, 235, 230)
-		grade.Parent = Lighting
+	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere") or Instance.new("Atmosphere")
+	atmosphere.Density = L.FogDensity
+	atmosphere.Offset = L.AtmosphereOffset
+	atmosphere.Color = Color3.fromRGB(80, 94, 96)
+	atmosphere.Decay = Color3.fromRGB(46, 54, 62)
+	atmosphere.Glare = 0
+	atmosphere.Haze = L.FogHaze
+	atmosphere.Parent = Lighting
+
+	local grade = Lighting:FindFirstChildOfClass("ColorCorrectionEffect") or Instance.new("ColorCorrectionEffect")
+	grade.Saturation = L.Saturation
+	grade.Contrast = L.Contrast
+	grade.Brightness = 0.03
+	grade.TintColor = L.Tint
+	grade.Parent = Lighting
+
+	-- Modern post-processing: soft glow on torches, headlights and neon,
+	-- and a gentle depth haze on far scenery.
+	local bloom = Lighting:FindFirstChildOfClass("BloomEffect") or Instance.new("BloomEffect")
+	bloom.Intensity = L.BloomIntensity
+	bloom.Size = L.BloomSize
+	bloom.Threshold = L.BloomThreshold
+	bloom.Parent = Lighting
+	local depth = Lighting:FindFirstChildOfClass("DepthOfFieldEffect") or Instance.new("DepthOfFieldEffect")
+	depth.FarIntensity = 0.18
+	depth.FocusDistance = 30
+	depth.InFocusRadius = 60
+	depth.NearIntensity = 0
+	depth.Parent = Lighting
+
+	-- Storm sky: no moon or stars behind the clouds.
+	local sky = Lighting:FindFirstChildOfClass("Sky") or Instance.new("Sky")
+	sky.CelestialBodiesShown = false
+	sky.StarCount = 0
+	sky.Parent = Lighting
+	local terrain = workspace:FindFirstChildOfClass("Terrain")
+	if terrain then
+		local clouds = terrain:FindFirstChildOfClass("Clouds") or Instance.new("Clouds")
+		clouds.Cover = 0.85
+		clouds.Density = 0.7
+		clouds.Color = Color3.fromRGB(70, 78, 84)
+		clouds.Parent = terrain
 	end
 end
 
@@ -1150,6 +1480,7 @@ function LevelBuilder.Build(): Folder
 	local rng = Random.new(1337)
 	local level = Instance.new("Folder")
 	level.Name = LEVEL_NAME
+	local freshTerrain = buildTerrain()
 
 	buildGroundAndBounds(level)
 	buildJungle(level, rng)
@@ -1159,6 +1490,11 @@ function LevelBuilder.Build(): Folder
 	buildRuins(level, rng)
 	buildTemple(level)
 	buildEscape(level, rng)
+	-- Backdrop is scenery only: never let it stop the playable level loading.
+	local ok, err = pcall(buildBackdrop, level, freshTerrain)
+	if not ok then
+		warn("[LevelBuilder] Backdrop failed:", err)
+	end
 
 	-- Parent last: one replication burst instead of thousands of small ones.
 	level.Parent = workspace

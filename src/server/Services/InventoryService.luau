@@ -16,6 +16,8 @@ local InventoryService = {}
 
 -- Set by Main: spawns a world pickup (used when a player drops an item).
 InventoryService.SpawnDroppedItem = nil :: ((itemId: string, position: Vector3) -> ())?
+-- Set by Main: throws a throwable item (a flare) from the character's root.
+InventoryService.ThrowItem = nil :: ((itemId: string, root: BasePart) -> ())?
 
 function InventoryService.Sync(player: Player)
 	local data = PlayerData.Get(player)
@@ -91,6 +93,28 @@ function InventoryService.Count(player: Player, itemId: string): number
 	return total
 end
 
+-- Removes up to `count` of an item. Returns true if that many were removed.
+function InventoryService.Remove(player: Player, itemId: string, count: number): boolean
+	local data = PlayerData.Get(player)
+	if not data or InventoryService.Count(player, itemId) < count then
+		return false
+	end
+	local remaining = count
+	for i = Config.Inventory.SlotCount, 1, -1 do
+		local slot = data.Inventory[i]
+		if slot and slot.Id == itemId and remaining > 0 then
+			local take = math.min(remaining, slot.Count)
+			slot.Count -= take
+			remaining -= take
+			if slot.Count <= 0 then
+				data.Inventory[i] = nil
+			end
+		end
+	end
+	InventoryService.Sync(player)
+	return true
+end
+
 local function removeFromSlot(data: PlayerData.Data, slotIndex: number)
 	local slot = data.Inventory[slotIndex]
 	if not slot then
@@ -138,7 +162,8 @@ local function onUseItem(player: Player, slotIndex: any)
 			StoryService.Toast(player, "Flashlight is already fully charged", "warning")
 			return
 		end
-	else
+	elseif not def.Throwable then
+		-- Throwables (flares) are always usable; anything else just describes itself.
 		StoryService.Toast(player, def.DisplayName .. ": " .. def.Description, "info")
 		return
 	end
@@ -151,7 +176,7 @@ local function onUseItem(player: Player, slotIndex: any)
 	data.Busy = false
 
 	-- Re-validate after the delay: the player may have died or the slot changed.
-	local _, humanoidAfter = PlayerData.GetAliveCharacter(player)
+	local _, humanoidAfter, rootAfter = PlayerData.GetAliveCharacter(player)
 	local slotAfter = data.Inventory[slotIndex]
 	if humanoidAfter ~= humanoid or not humanoidAfter or not slotAfter or slotAfter.Id ~= def.Id then
 		return
@@ -164,6 +189,8 @@ local function onUseItem(player: Player, slotIndex: any)
 		data.Battery = math.min(Config.Flashlight.MaxBattery, data.Battery + def.BatteryAmount)
 		player:SetAttribute("Battery", data.Battery)
 		StoryService.Toast(player, "Flashlight recharged", "good")
+	elseif def.Throwable and rootAfter and InventoryService.ThrowItem then
+		task.spawn(InventoryService.ThrowItem, def.Id, rootAfter)
 	end
 	InventoryService.Sync(player)
 end

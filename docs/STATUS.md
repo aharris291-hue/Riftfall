@@ -20,13 +20,13 @@ cloud development environment. Treat everything as untested until it passes
 - Flashlight with server-owned battery and drain; batteries recharge it
 - Two checkpoints plus a door checkpoint after the puzzle; respawn at the
   furthest one; items kept on death; falling into the chasm is fatal
-- The Hollow: patrol, investigate (hearing), chase (sight cone + line of
+- The Rift Stalker: patrol, investigate (hearing), chase (sight cone + line of
   sight), telegraphed attack, search, return; hiding in tall grass while
   crouched; flashlight increases how far it sees; pathfinding with fallback
   and stuck recovery; AI tick every 0.2 s
 - Temple dial puzzle with clues split across a mural and a journal; shared
   server state; debounced; can't re-lock or soft-lock
-- Escape set-piece: telegraphed falling rocks, the Hollow released behind the
+- Escape set-piece: telegraphed falling rocks, the Rift Stalker released behind the
   players, climbable cliff, bridge collapsing behind players with safeguards
   so nobody is stranded
 - Story: objectives (late-join safe), radio subtitles (skippable), four
@@ -35,6 +35,21 @@ cloud development environment. Treat everything as untested until it passes
   note reader, damage and danger edge effects, death screen, results screen
   with Play Again
 - Atmosphere: night lighting, fog, colour grade, rain, lightning, camera shake
+
+- Expedition outfits for players (four role variants) instead of Roblox avatars
+- Flashlight with a visible beam aimed by the camera; per-player brightness option
+
+### Chapter 1 expansion (Milestone 4, part 1)
+
+- First sighting: the Rift Stalker crosses the trail far ahead, flickers and
+  vanishes (it cannot hurt you here), with Serra's reaction
+- Locked route: the ruins are walled off behind a chained metal gate; Kade
+  at the camp gives bolt cutters (a key item he re-gives if needed) and a flare
+- Throwable flares (use from the inventory): land ahead of you, burn red for
+  14 s and make a noise the creature hears from 70 studs away, pulling it
+  away from you
+- Four hidden expedition ID tags (optional evidence); the results screen
+  counts them, and returning Daniel's tag adds an extra ending scene with Kade
 
 ## Partially implemented
 
@@ -62,8 +77,11 @@ cloud development environment. Treat everything as untested until it passes
 
 | Asset | Current | To replace |
 |---|---|---|
-| All environment art | Basic parts generated in `LevelBuilder.luau` | Model in Studio or import meshes, then load them from `ServerStorage` |
-| The Hollow | Blocky stand-in built in `StalkerService.buildModel` | Any model with a `Humanoid` and `HumanoidRootPart` |
+| Ground, cliffs, mountain | Smooth terrain (swaying grass, mud, rock) filled by `LevelBuilder`/`SceneryKit` | Can stay; optionally hand-sculpt in Studio |
+| Trees, ferns, arches, torches, tents, cases, 4x4s, helicopter | Part-built placeholders in `src/server/Util/SceneryKit.luau` | Real meshes dropped into `ServerStorage > RiftfallAssets` (see README, "Swapping in real 3D models") |
+| Other environment pieces (temple, tunnel, bridge, pillars) | Basic parts in `LevelBuilder.luau` | Real meshes; needs a small code change per piece |
+| Characters (Jax, Serra, Kade, Lira, Corrupted Soldier) | Story characters can use a finished model from `ServerStorage > RiftfallAssets > Characters`; otherwise part-built outfits: data in `src/shared/CharacterDesigns.luau`, built by `src/server/Util/Outfitter.luau` | Layered clothing or mesh accessories you own |
+| The Rift Stalker | Part-built stand-in (crystal spines, plates, claws) in `StalkerService.buildModel` | Any model with a `Humanoid` and `HumanoidRootPart` |
 | Sounds | Empty IDs in `Config.Sounds` | Paste `rbxassetid://...` IDs you are allowed to use |
 | Animations | None (default Roblox avatar animations only) | Upload animations you own and play them from the client |
 | Rain particles | Default particle texture | Optional custom texture |

@@ -46,13 +46,17 @@ To stop, press the red ■ *Stop* button (or **Shift+F5**).
 | Crouch (quiet) | Press **C** (toggles) | **Crouch** button |
 | Flashlight | **F** | **Light** button |
 | Interact (pick up, read, turn) | Hold/press **E** at the prompt | Tap the prompt |
-| Use inventory item | **1-4**, or click the slot | Tap the slot |
+| Use inventory item (bandage, battery, or **throw a flare**) | **1-4**, or click the slot | Tap the slot |
 | Drop item | Click the small **X** on the slot | Tap the **X** |
+| Brightness (too dark?) | Click **Brightness** under the objective | Tap **Brightness** |
+| Laggy? | Click **Graphics** (under Brightness) to switch to **Fast** | Tap **Graphics** |
+| Change Jax's outfit | Click **Outfit** under the objective | Tap **Outfit** |
+| Talk to Serra, Kade, Lira | Press **E** at the Talk prompt | Tap the prompt |
 | Skip subtitle / close note | **Enter**, or click it | Tap it |
 
 ### How to survive
 
-- **The Hollow hunts by sound and sight.** Sprinting is loud, walking is
+- **The Rift Stalker hunts by sound and sight.** Sprinting is loud, walking is
   quiet, crouching is almost silent. Your flashlight lets it see you from
   further away.
 - **Hide in tall grass**: crouch inside a grass patch and it can't see you
@@ -70,6 +74,56 @@ To stop, press the red ■ *Stop* button (or **Shift+F5**).
   you touched, and you keep your items.
 
 ---
+
+## Swapping in real 3D models
+
+Right now every object is a placeholder built from simple shapes. To reach a
+polished, modern look, each one can be replaced by a real 3D model (made in
+Blender, or a Creator Store / Marketplace model you own) **without touching
+any code**:
+
+**Easiest way: the Riftfall Asset Helper plugin** (`tools/studio/RiftfallAssetHelper.lua`).
+
+1. In Studio, open the **Plugins** tab and click **Plugins Folder**. Copy
+   `RiftfallAssetHelper.lua` into the folder that opens, then restart Studio.
+   A **Riftfall** toolbar now shows in the Plugins tab.
+2. Open the **Toolbox** (View tab > Toolbox), choose **Models**, search (for
+   example "jungle tree") and click a model. It appears in the world, selected.
+3. Click the matching Riftfall button (Tree, Fern, Arch, Broken Arch, Torch,
+   Tent, Crates, 4x4, Helicopter). The helper deletes any scripts inside it,
+   resizes it, and files it in the right place. Ctrl+Z undoes it.
+4. Press Play, then save (File > Save).
+
+Tip: pick lower-detail models for trees and ferns; the level uses over a
+hundred of each.
+
+**By hand** (what the helper does for you):
+
+1. In Studio, create a Folder named `RiftfallAssets` inside `ServerStorage`.
+2. Put a model inside it with one of these exact names. Its pivot should sit
+   on the ground, and its front should face the model's "forward" (-Z).
+   Put several models inside a Folder with that name to get random variants.
+
+| Name | Replaces |
+|---|---|
+| `JungleTree` | Every jungle tree |
+| `Fern` | Ground ferns |
+| `StoneArch` / `BrokenStoneArch` | Ruins archways |
+| `Torch` | Torches (include your own light) |
+| `Tent` | Camp tents |
+| `SupplyCases` | Crates and equipment cases |
+| `Expedition4x4` | The 4x4s (add SpotLights for headlights) |
+| `CrashedHelicopter` | The helicopter wreck |
+
+3. For story characters, add a Folder `Characters` inside `RiftfallAssets`
+   with rigged models named `Serra`, `Kade`, `Lira` or `CorruptedSoldier`
+   (each needs a `Humanoid` and `HumanoidRootPart`).
+4. For the player, use Roblox's built-in `StarterPlayer > StarterCharacter`
+   with a rigged Jax model, and give that model the attribute
+   `CustomModel = true` so the game doesn't add placeholder gear on top.
+
+Save the place file after adding models: they live in your `.rbxl`, not in
+this repository.
 
 ## Why is the world built by code?
 
@@ -124,19 +178,21 @@ src/
     Config.luau              every balance number in one place
     Items.luau               item definitions
     Story.luau               objectives, radio dialogue, notes
+    FlashlightVisuals.luau   flashlight light + visible beam
   server/                    -> ServerScriptService.Server
     Main.server.luau         server entry point, starts all services
     Util/PlayerData.luau     per-player run state (server-owned)
     Util/Zones.luau          zone checks + tag binding helpers
     Services/
       LevelBuilder.luau      builds the map and lighting
+      CharacterService.luau  dresses players as expedition members
       StoryService.luau      objectives, dialogue, story trigger zones
       InventoryService.luau  slot inventory, use/drop validation
       InteractionService.luau pickups and notes (ProximityPrompts)
       FlashlightService.luau battery and light (server-owned)
       CheckpointService.luau checkpoints, respawn, fall deaths
       PuzzleService.luau     temple dial puzzle and door
-      StalkerService.luau    the Hollow's AI state machine
+      StalkerService.luau    the Rift Stalker's AI state machine
       EscapeService.luau     collapse set-piece: debris, chase, bridge
       GameService.luau       end of run, results, Play Again
   client/                    -> StarterPlayerScripts.Client
@@ -154,6 +210,7 @@ docs/
   DESIGN.md                  game summary, slice, milestones, assumptions
   TEST_PLAN.md               what to test and what should happen
   STATUS.md                  what is done, partial, planned, untested
+  PLAYTEST_NOTES.md          feedback from play sessions and what changed
 ```
 
 ---
@@ -164,8 +221,8 @@ docs/
 |---|---|
 | Nothing happens / I fall forever when I press Play | Open *View > Output* and look for red text. Copy the red lines and send them over. |
 | "Rojo" errors | You don't need Rojo just to play: open `Riftfall.rbxlx` directly. |
-| It's too dark to see | Press **F** for the flashlight. Pickups, notes and checkpoints glow. You can also raise `Brightness` in `LevelBuilder.SetupLighting`. |
-| The creature never moves | Check Output for `[StalkerService] AI tick failed` and send that error text. In the Explorer, `Workspace > Hollow` shows a `State` attribute (Patrol, Chase...) that helps diagnose it. |
+| It's too dark to see | Press **F** for the flashlight, or click **Brightness** under the objective panel. To change it for everyone, raise the values in `Config.Lighting` (`src/shared/Config.luau`). |
+| The creature never moves | Check Output for `[StalkerService] AI tick failed` and send that error text. In the Explorer, `Workspace > RiftStalker` shows a `State` attribute (Patrol, Chase...) that helps diagnose it. |
 | No sound | Expected for now: no audio has been chosen yet. See "Assets and placeholders" in `docs/STATUS.md`. |
 
 **Sharing an error:** in the Output window, right-click > *Copy*, or select

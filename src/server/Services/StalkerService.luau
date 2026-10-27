@@ -1,5 +1,5 @@
 --!strict
--- StalkerService: "the Hollow", the demo's one enemy (a Stalker-type hunter).
+-- StalkerService: the Rift Stalker, the demo's one active enemy.
 --
 -- It runs a simple state machine on the server, a few times per second:
 --
@@ -52,6 +52,11 @@ local searchPoint: Vector3? = nil
 local lastAttackTime = 0
 local attackStarted = 0
 
+-- Loud noises from the world (distraction flares). Each one can be heard
+-- within its radius until it expires.
+type Noise = { Position: Vector3, Radius: number, Expires: number }
+local noises: { Noise } = {}
+
 local patrolPoints: { Vector3 } = {}
 local patrolIndex = 1
 
@@ -73,6 +78,10 @@ local lastProgressTime = 0
 
 local rng = Random.new()
 
+local MODEL_NAME = "RiftStalker"
+local EYE_COLOR = Color3.fromRGB(255, 90, 230)
+local ATTACK_EYE_COLOR = Color3.fromRGB(255, 30, 30)
+
 ------------------------------------------------------------------------------
 -- Model
 ------------------------------------------------------------------------------
@@ -81,8 +90,8 @@ local rng = Random.new()
 -- model later (keep a Humanoid and a HumanoidRootPart).
 local function buildModel(position: Vector3): Model
 	local m = Instance.new("Model")
-	m.Name = "Hollow"
-	local body = Color3.fromRGB(22, 20, 24)
+	m.Name = MODEL_NAME
+	local body = Color3.fromRGB(34, 24, 46)
 
 	local hrp = Instance.new("Part")
 	hrp.Name = "HumanoidRootPart"
@@ -112,36 +121,126 @@ local function buildModel(position: Vector3): Model
 		return p
 	end
 
-	local torso = limb("Torso", Vector3.new(2.2, 3.4, 1.2), CFrame.new(0, 1.7, 0) * CFrame.Angles(math.rad(-10), 0, 0))
+	-- The Rift Stalker (concept sheet): a tall alien hunter with a dark
+	-- violet exoskeleton, glowing crystal spines, long clawed arms and
+	-- back-bent legs. Fast, aggressive, and able to phase between dimensions.
+	local shell = Color3.fromRGB(34, 24, 46)
+	local plate = Color3.fromRGB(58, 40, 78)
+	local crystal = Color3.fromRGB(190, 90, 255)
+
+	local torso =
+		limb("Torso", Vector3.new(2.0, 3.0, 1.1), CFrame.new(0, 1.9, 0) * CFrame.Angles(math.rad(-14), 0, 0), shell)
 	-- The torso is the one part that collides, so players cannot walk through it.
 	torso.CanCollide = true
-	limb("Head", Vector3.new(1.5, 1.9, 1.5), CFrame.new(0, 4.3, -0.5) * CFrame.Angles(math.rad(-15), 0, 0))
 	limb(
-		"LeftArm",
-		Vector3.new(0.55, 5.5, 0.55),
-		CFrame.new(-1.5, 0.8, -0.3) * CFrame.Angles(math.rad(-12), 0, math.rad(-6))
+		"Chest",
+		Vector3.new(2.3, 1.3, 1.3),
+		CFrame.new(0, 2.8, -0.25) * CFrame.Angles(math.rad(-14), 0, 0),
+		plate,
+		Enum.Material.Slate
 	)
+	limb("Waist", Vector3.new(1.3, 0.9, 0.9), CFrame.new(0, 0.2, 0), shell)
+	limb("Neck", Vector3.new(0.6, 0.9, 0.6), CFrame.new(0, 3.9, -0.55) * CFrame.Angles(math.rad(-30), 0, 0), shell)
 	limb(
-		"RightArm",
-		Vector3.new(0.55, 5.5, 0.55),
-		CFrame.new(1.5, 0.8, -0.3) * CFrame.Angles(math.rad(-12), 0, math.rad(6))
+		"Head",
+		Vector3.new(1.1, 1.0, 1.7),
+		CFrame.new(0, 4.5, -0.95) * CFrame.Angles(math.rad(-8), 0, 0),
+		plate,
+		Enum.Material.Slate
 	)
-	limb("LeftLeg", Vector3.new(0.8, 3.2, 0.8), CFrame.new(-0.6, -2.4, 0))
-	limb("RightLeg", Vector3.new(0.8, 3.2, 0.8), CFrame.new(0.6, -2.4, 0))
-	table.clear(eyes)
-	for _, x in { -0.35, 0.35 } do
-		local eye = limb(
-			"Eye",
-			Vector3.new(0.3, 0.2, 0.1),
-			CFrame.new(x, 4.5, -1.3),
-			Color3.fromRGB(255, 230, 200),
+	limb("Jaw", Vector3.new(0.9, 0.35, 1.2), CFrame.new(0, 4.05, -1.15) * CFrame.Angles(math.rad(10), 0, 0), shell)
+
+	-- Long arms: upper arm, forearm, and three claws each.
+	for _, side in { -1, 1 } do
+		limb(
+			"UpperArm",
+			Vector3.new(0.5, 2.6, 0.5),
+			CFrame.new(side * 1.4, 2.3, -0.2) * CFrame.Angles(math.rad(-15), 0, math.rad(side * 12)),
+			shell
+		)
+		limb(
+			"Forearm",
+			Vector3.new(0.42, 2.8, 0.42),
+			CFrame.new(side * 1.75, 0.0, -0.75) * CFrame.Angles(math.rad(-30), 0, math.rad(side * 4)),
+			plate
+		)
+		for c = -1, 1 do
+			local claw = limb(
+				"Claw",
+				Vector3.new(0.12, 1.1, 0.12),
+				CFrame.new(side * 1.85 + c * 0.14, -1.55, -1.45) * CFrame.Angles(math.rad(-40), 0, math.rad(c * 10)),
+				Color3.fromRGB(220, 200, 240),
+				Enum.Material.Marble
+			)
+			claw.CanQuery = false
+		end
+		-- Back-bent legs: thigh forward, shin back, foot.
+		limb(
+			"Thigh",
+			Vector3.new(0.7, 2.0, 0.7),
+			CFrame.new(side * 0.6, -0.9, -0.35) * CFrame.Angles(math.rad(25), 0, 0),
+			shell
+		)
+		limb(
+			"Shin",
+			Vector3.new(0.5, 2.2, 0.5),
+			CFrame.new(side * 0.6, -2.7, 0.15) * CFrame.Angles(math.rad(-20), 0, 0),
+			plate
+		)
+		limb("Foot", Vector3.new(0.6, 0.3, 1.2), CFrame.new(side * 0.6, -3.85, -0.2), shell)
+	end
+
+	-- Glowing crystal spines along the back, shoulders and head crest.
+	local spines = {
+		{ Vector3.new(0, 3.3, 0.7), -35, 0, 1.6 },
+		{ Vector3.new(0, 2.5, 0.75), -45, 0, 1.3 },
+		{ Vector3.new(0, 1.7, 0.7), -55, 0, 1.0 },
+		{ Vector3.new(-1.1, 3.3, 0.2), -20, -35, 1.2 },
+		{ Vector3.new(1.1, 3.3, 0.2), -20, 35, 1.2 },
+		{ Vector3.new(0, 5.0, -0.6), -60, 0, 1.0 },
+		{ Vector3.new(-0.3, 4.9, -0.4), -55, -20, 0.8 },
+		{ Vector3.new(0.3, 4.9, -0.4), -55, 20, 0.8 },
+	}
+	for i, spine in spines do
+		local length = spine[4] :: number
+		local part = limb(
+			"Crystal" .. i,
+			Vector3.new(0.22, length, 0.22),
+			CFrame.new(spine[1] :: Vector3)
+				* CFrame.Angles(math.rad(spine[2] :: number), 0, math.rad(spine[3] :: number))
+				* CFrame.new(0, length / 2, 0),
+			crystal,
 			Enum.Material.Neon
 		)
+		part.CanQuery = false
+	end
+	-- Glowing seams down the chest.
+	for _, x in { -0.45, 0.45 } do
+		local seam = limb(
+			"Seam",
+			Vector3.new(0.08, 1.6, 0.08),
+			CFrame.new(x, 2.2, -0.95) * CFrame.Angles(math.rad(-14), 0, 0),
+			crystal,
+			Enum.Material.Neon
+		)
+		seam.CanQuery = false
+	end
+	local core = limb("Core", Vector3.new(0.4, 0.4, 0.2), CFrame.new(0, 2.9, -0.95), crystal, Enum.Material.Neon)
+	core.CanQuery = false
+	local aura = Instance.new("PointLight")
+	aura.Color = crystal
+	aura.Range = 12
+	aura.Brightness = 1.4
+	aura.Parent = core
+
+	table.clear(eyes)
+	for _, x in { -0.3, 0.3 } do
+		local eye = limb("Eye", Vector3.new(0.25, 0.14, 0.1), CFrame.new(x, 4.6, -1.8), EYE_COLOR, Enum.Material.Neon)
 		eye.CanQuery = false
 		table.insert(eyes, eye)
 	end
 	local glow = Instance.new("PointLight")
-	glow.Color = Color3.fromRGB(255, 120, 90)
+	glow.Color = EYE_COLOR
 	glow.Range = 8
 	glow.Brightness = 1.2
 	glow.Parent = eyes[1]
@@ -339,6 +438,20 @@ local function sense(): (Player?, BasePart?, Vector3?)
 			heardPosition, heardDistance = playerRoot.Position, distance
 		end
 	end
+	local now = os.clock()
+	for i = #noises, 1, -1 do
+		local noise = noises[i]
+		if now > noise.Expires then
+			table.remove(noises, i)
+		else
+			local distance = (noise.Position - root.Position).Magnitude
+			-- A flare is louder than footsteps: it wins unless a player is
+			-- much closer.
+			if distance <= noise.Radius and distance * 0.5 < heardDistance then
+				heardPosition, heardDistance = noise.Position, distance * 0.5
+			end
+		end
+	end
 	return seenPlayer, seenRoot, heardPosition
 end
 
@@ -369,7 +482,7 @@ end
 
 local function setEyesBright(bright: boolean)
 	for _, eye in eyes do
-		eye.Color = if bright then Color3.fromRGB(255, 40, 40) else Color3.fromRGB(255, 230, 200)
+		eye.Color = if bright then ATTACK_EYE_COLOR else EYE_COLOR
 	end
 end
 
@@ -599,6 +712,7 @@ local function loadPatrolPoints()
 end
 
 function StalkerService.Despawn()
+	table.clear(noises)
 	if model then
 		model:Destroy()
 	end
@@ -647,11 +761,104 @@ function StalkerService.StartHunt(delaySeconds: number)
 	setState("Idle")
 end
 
+-- A loud sound somewhere in the world (for example a thrown flare). While it
+-- lasts, the creature hears it from within `radius` and goes to investigate.
+function StalkerService.ReportNoise(position: Vector3, radius: number, duration: number)
+	table.insert(noises, { Position = position, Radius = radius, Expires = os.clock() + duration })
+end
+
+-- The first sighting: a harmless copy of the creature walks across the trail
+-- far ahead of the player, flickers, and vanishes. It is the creature's
+-- introduction ("through clues before a full confrontation").
+function StalkerService.PlaySighting(from: Vector3, to: Vector3, seconds: number)
+	local savedEyes = table.clone(eyes) -- buildModel refills the eye list.
+	local m = buildModel(from)
+	table.clear(eyes)
+	for _, eye in savedEyes do
+		table.insert(eyes, eye)
+	end
+	m.Name = MODEL_NAME .. "Sighting" -- Not the real enemy: no danger meter.
+	local hum = m:FindFirstChildOfClass("Humanoid")
+	if hum then
+		hum:Destroy()
+	end
+	for _, part in m:GetDescendants() do
+		if part:IsA("BasePart") then
+			part.Anchored = true
+			part.CanCollide = false
+			part.CanQuery = false
+		end
+	end
+	local facing = CFrame.lookAt(from, Vector3.new(to.X, from.Y, to.Z))
+	m:PivotTo(facing)
+	m.Parent = workspace
+	local steps = math.max(1, math.floor(seconds / 0.05))
+	for i = 1, steps do
+		if not m.Parent then
+			return
+		end
+		local alpha = i / steps
+		-- A slight bob so it reads as walking, not sliding.
+		local bob = math.abs(math.sin(alpha * math.pi * 8)) * 0.4
+		m:PivotTo(facing.Rotation + from:Lerp(to, alpha) + Vector3.new(0, bob, 0))
+		task.wait(0.05)
+	end
+	-- Flicker out of this dimension.
+	for _ = 1, 3 do
+		for _, part in m:GetDescendants() do
+			if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+				part.Transparency = 0.8
+			end
+		end
+		task.wait(0.1)
+		for _, part in m:GetDescendants() do
+			if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+				part.Transparency = 0
+			end
+		end
+		task.wait(0.08)
+	end
+	m:Destroy()
+end
+
 function StalkerService.GetMode(): string
 	return mode
 end
 
+-- Every few seconds the creature briefly flickers, half out of this
+-- dimension. Purely visual; it never happens during an attack wind-up, so
+-- the attack tell stays readable.
+local function phaseFlicker()
+	local m = model
+	if not m or state == "Attack" then
+		return
+	end
+	for _ = 1, 2 do
+		for _, part in m:GetDescendants() do
+			if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+				part.Transparency = 0.7
+			end
+		end
+		task.wait(0.12)
+		for _, part in m:GetDescendants() do
+			if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+				part.Transparency = 0
+			end
+		end
+		task.wait(0.1)
+	end
+end
+
 function StalkerService.Init()
+	task.spawn(function()
+		while true do
+			task.wait(rng:NextNumber(5, 9))
+			if model and model.Parent then
+				phaseFlicker()
+			end
+		end
+	end)
+
 	task.spawn(function()
 		while true do
 			task.wait(C.TickInterval)

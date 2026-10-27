@@ -1,13 +1,14 @@
 --!strict
 -- FlashlightService: the server owns the battery level and whether the light
--- is on. The light itself is a SpotLight on the character's head, so other
--- players see it too. (Each client additionally aims its own light along its
--- camera for a better feel; see client FlashlightController.)
+-- is on. The light and its visible beam sit on the character's head, so
+-- other players see them too. Each client hides its own head light and shows
+-- a local copy aimed along the camera instead (see FlashlightController).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local FlashlightVisuals = require(ReplicatedStorage.Shared.FlashlightVisuals)
 local PlayerData = require(script.Parent.Parent.Util.PlayerData)
 local StoryService = require(script.Parent.StoryService)
 
@@ -15,36 +16,15 @@ local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 
 local FlashlightService = {}
 
-local function getLight(player: Player): SpotLight?
-	local character = player.Character
-	local head = character and character:FindFirstChild("Head")
-	local attachment = head and head:FindFirstChild("FlashlightAttachment")
-	local light = attachment and attachment:FindFirstChild("Flashlight")
-	if light and light:IsA("SpotLight") then
-		return light
-	end
-	return nil
-end
+local rigs: { [Player]: FlashlightVisuals.Rig } = {}
 
-local function createLight(character: Model)
+local function createLight(player: Player, character: Model)
 	local head = character:WaitForChild("Head", 10)
-	if not head or not head:IsA("BasePart") then
+	if not head or not head:IsA("BasePart") or character ~= player.Character then
 		return
 	end
-	local attachment = Instance.new("Attachment")
-	attachment.Name = "FlashlightAttachment"
-	attachment.Position = Vector3.new(0, 0, -0.9)
-	attachment.Parent = head
-	local light = Instance.new("SpotLight")
-	light.Name = "Flashlight"
-	light.Face = Enum.NormalId.Front
-	light.Range = Config.Flashlight.Range
-	light.Brightness = Config.Flashlight.Brightness
-	light.Angle = Config.Flashlight.Angle
-	light.Color = Color3.fromRGB(255, 244, 220)
-	light.Shadows = true
-	light.Enabled = false
-	light.Parent = attachment
+	-- The head's Front face points where the character faces.
+	rigs[player] = FlashlightVisuals.Create(head, 0.7)
 end
 
 function FlashlightService.SetOn(player: Player, on: boolean)
@@ -57,9 +37,9 @@ function FlashlightService.SetOn(player: Player, on: boolean)
 		on = false
 	end
 	player:SetAttribute("FlashlightOn", on)
-	local light = getLight(player)
-	if light then
-		light.Enabled = on
+	local rig = rigs[player]
+	if rig and rig.Light.Parent then
+		FlashlightVisuals.SetEnabled(rig, on)
 	end
 end
 
@@ -76,16 +56,19 @@ function FlashlightService.Init()
 	local function onPlayer(player: Player)
 		player.CharacterAdded:Connect(function(character)
 			player:SetAttribute("FlashlightOn", false)
-			createLight(character)
+			createLight(player, character)
 		end)
 		if player.Character then
-			createLight(player.Character)
+			task.spawn(createLight, player, player.Character)
 		end
 	end
 	Players.PlayerAdded:Connect(onPlayer)
 	for _, player in Players:GetPlayers() do
 		onPlayer(player)
 	end
+	Players.PlayerRemoving:Connect(function(player)
+		rigs[player] = nil
+	end)
 
 	-- Drain batteries of lights that are on.
 	task.spawn(function()

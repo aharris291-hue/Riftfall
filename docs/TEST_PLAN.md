@@ -12,7 +12,7 @@ text in Output, and send it over.
 |---|---|---|
 | A1 | Press Play | Output shows `[Riftfall] Server ready.` and `[Riftfall] Client ready.`, no red errors |
 | A2 | Look around | Night, fog, rain, burning helicopter wreck. Objective panel top-left says "Follow the trail north..." |
-| A3 | Wait 2 seconds | Mara's radio subtitles appear above the inventory bar, four lines |
+| A3 | Wait 2 seconds | Serra's subtitles appear above the inventory bar, four lines |
 | A4 | Click a subtitle | It skips to the next line |
 
 ## B. Movement and flashlight
@@ -23,6 +23,9 @@ text in Output, and send it over.
 | B2 | Hold Shift while moving | Faster; stamina bar drains; when empty you slow down until it refills to about a third |
 | B3 | Press C | Camera lowers, you move slowly. Press C again to stand |
 | B4 | Press F | Flashlight on, label says ON, battery bar slowly drains. Light follows where the camera looks |
+| B4b | With the light on, look around | A visible cone of light (the beam) comes out in front of you, follows the camera, and lights up the ground and trees |
+| B4c | Click **Brightness** under the objective panel | Screen gets brighter at each step: Normal, Bright, Brightest, then back to Normal |
+| B4d | Look at your character | Not your Roblox avatar: an expedition outfit with a hat, scarf, backpack and bedroll, belt and radio. Your name tag shows a role such as "Scout" |
 | B5 | Leave the light on until empty (or set `StartingBattery` low in Config) | Light turns off with a "Battery is dead" message; F won't turn it back on |
 
 ## C. Inventory and healing
@@ -42,15 +45,15 @@ text in Output, and send it over.
 
 | # | Do this | Expected |
 |---|---|---|
-| D1 | Walk up to the tree with red claw marks | Mara comments on them |
+| D1 | Walk up to the tree with red claw marks | Serra comments on them |
 | D2 | Read the note on the broken crate by that tree | A paper panel opens with the survivor's warning. Close with the button or Enter |
 | D3 | Reach the camp | Objective changes, "Checkpoint reached: Camp" message near the green flare |
 | D4 | Read Rourke's journal on the camp table | Journal text with the dial clue |
 | D5 | Reset your character (Esc > Reset Character) | You respawn at the camp checkpoint with your items |
 
-## E. The Hollow (enemy AI)
+## E. The Rift Stalker (enemy AI)
 
-Tip: select `Workspace > Hollow` in the Explorer while playing; its `State`
+Tip: select `Workspace > RiftStalker` in the Explorer while playing; its `State`
 attribute shows what it is doing.
 
 | # | Do this | Expected |
@@ -69,7 +72,7 @@ attribute shows what it is doing.
 
 | # | Do this | Expected |
 |---|---|---|
-| F1 | Enter the temple | "Checkpoint reached: Temple", new objective, Mara mentions the order of the sky |
+| F1 | Enter the temple | "Checkpoint reached: Temple", new objective, Serra mentions the order of the sky |
 | F2 | Examine the mural (bottom-left of the door) | Text describes EYE ? SUN |
 | F3 | Press E on each dial | Each turn cycles SUN → MOON → EYE → SPIRAL |
 | F4 | Set EYE, MOON, SUN | Dials turn purple and lock; camera shakes; the door sinks into the floor; "Checkpoint reached: Temple Door" |
@@ -81,9 +84,9 @@ attribute shows what it is doing.
 |---|---|---|
 | G1 | Run through the opened door | Red circles appear on the floor ~1.3 s before rocks fall on them; rocks never block the path |
 | G2 | Stand in a red circle when the rock lands | 30 damage |
-| G3 | Look back a few seconds after the door opened | The Hollow is chasing from the temple entrance |
-| G4 | Die during the escape | Respawn just inside the door; the Hollow is moved back and released again after a head start |
-| G5 | Climb the wooden ladder at the end of the tunnel | You climb to the cliff top; the Hollow stops at the bottom |
+| G3 | Look back a few seconds after the door opened | The Rift Stalker is chasing from the temple entrance |
+| G4 | Die during the escape | Respawn just inside the door; the Rift Stalker is moved back and released again after a head start |
+| G5 | Climb the wooden ladder at the end of the tunnel | You climb to the cliff top; the Rift Stalker stops at the bottom |
 | G6 | Cross the rope bridge | Planks fall away behind you; invisible rails stop you falling off the sides |
 | G7 | Jump off the bridge into the chasm | You die and respawn at the temple door; the bridge is whole again |
 | G8 | Reach the red flare | Results screen: time, deaths, notes found (out of 4), Rift Shard yes/no |
@@ -113,3 +116,56 @@ attribute shows what it is doing.
 |---|---|---|
 | J1 | *View > Performance stats* (or Ctrl+Shift+F1 in play) | Smooth frame rate on your machine; report the FPS if it feels choppy |
 | J2 | Run around the jungle with the flashlight on | No big frame drops |
+
+## H. Characters (concept sheet redesign)
+
+| # | Do this | Expected |
+|---|---|---|
+| H1 | Spawn | You are Jax: messy brown hair, charcoal jacket, brown harness, knee pads, backpack, glowing cyan wrist unit. No Roblox avatar items |
+| H2 | Click **Outfit** several times | Cycles Default, Stealth, Survival, Wanderer, Heavy Armor; a toast names each. Works again after respawn |
+| H3 | Look next to the crash site | Serra stands on a glowing disc as a see-through cyan hologram; **Talk** plays her lines |
+| H4 | Reach the camp | Kade (bearded, brown armour) is there; **Talk** mentions his brother Daniel |
+| H5 | In the ruins, find the slumped soldier with red visor and chest core | It does not move; the note next to it can be read |
+| H6 | Enter the temple | Lira (white lab coat, glasses, bun) is there; **Talk** helps with the mural |
+| H7 | Reach the rescue flare | Kade and Lira are waiting there; their camp/temple copies are gone |
+| H8 | Watch the creature for 10 seconds | Violet with glowing crystal spines; it briefly flickers (phases) every few seconds |
+
+## I. Environment (concept art redesign)
+
+| # | Do this | Expected |
+|---|---|---|
+| I1 | Spawn and look around | Smooth grassy ground with swaying grass blades; the crashed helicopter on its side, smoking; a rusted 4x4 with headlights lighting the trail |
+| I2 | Walk the trail | Mud path, ferns, vines hanging from trees; cliffs visible above the canopy on both sides |
+| I3 | Reach the camp | Mud and puddles, A-frame tents (one torn), crates, two 4x4s with headlights on, torches burning |
+| I4 | Enter the ruins | Walk through a big root-wrapped stone arch; broken arches at the sides; torch-lit stairs climbing away on both sides |
+| I5 | Look at the temple | Stepped tiers on top, roots and moss over the front, an arch framing the doorway |
+| I6 | Wait for lightning | A bright jagged bolt flashes in the sky |
+| I7 | Watch the Stalker walk on grass and through the arches | It still patrols and chases normally (terrain does not block its path) |
+| I8 | Play Again at the end | The level rebuilds with no duplicate cliffs or floating trees |
+| I9 | Add a model named `JungleTree` to `ServerStorage > RiftfallAssets` and press Play | Every tree is now that model |
+
+## J. Chapter 1 expansion (sighting, gate, flares, evidence)
+
+| # | Do this | Expected |
+|---|---|---|
+| J1 | Walk the trail past the claw marks | About two thirds of the way to camp, the creature crosses the trail far ahead, flickers and disappears. Serra reacts. It does not attack |
+| J2 | Reach the edge of the ruins without talking to Kade | A wall and a chained metal gate block the way; walking into the gate area shows the new objective. **Cut chain** says you need bolt cutters |
+| J3 | Try to climb or jump over the ruin wall | You can't get over it |
+| J4 | Talk to Kade at the camp | He hands you **Bolt Cutters** (and a **Flare** if you have room). Talking again does not give a second pair while you still have one |
+| J5 | Hold **E** on the chain | The chain and padlock disappear, both doors swing open, everyone sees "The gate is open". The bolt cutters leave your inventory |
+| J6 | Pick up the flare at the camp (and the one in the ruins) | Shows in your inventory as **Flare**, up to 2 per slot |
+| J7 | In the ruins, while the creature patrols, press the flare's number key | A red burning flare lands about 18 studs ahead. The creature walks over to investigate it. The flare burns out after about 14 seconds |
+| J8 | Find the four ID tags: trail (beside the path), camp (torn tent), ruins (under the broken arch), temple (by the tiers) | Each one opens a note and shows "Evidence found: x / 4" the first time |
+| J9 | Finish the level with Daniel Kade's tag found | Results show "Expedition tags found: x / 4 (Daniel's tag returned)" and Kade has two extra lines |
+| J10 | Play Again | The gate is chained and closed again, flares and tags are back, the sighting plays again |
+| J11 | Two players: one cuts the chain | The gate opens for both; the second player does not need cutters |
+
+## K. Performance (lag fix)
+
+| # | Do this | Expected |
+|---|---|---|
+| K1 | Press Play and walk the whole level | Noticeably smoother than before, especially in the jungle and at the camp |
+| K2 | Walk into a tree | You stop at the trunk; leaves and ferns don't block you |
+| K3 | Click **Graphics** under Brightness | Changes to **Graphics: Fast**: background blur and glow switch off, rain gets lighter, torches look the same. Click again for **Best** |
+| K4 | In Studio, press **Ctrl+Shift+F1** while playing | The stats panel shows FPS; tell Claude the number in Best and in Fast |
+| K5 | Watch the creature chase you around trees | It still finds its way around them |

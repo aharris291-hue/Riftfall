@@ -3,7 +3,7 @@
 --
 --  * Falling debris in the tunnel. Every rock is announced by a red warning
 --    circle on the floor first, so it can always be dodged.
---  * The Hollow is released behind the players after a short head start.
+--  * The Rift Stalker is released behind the players after a short head start.
 --  * The rope bridge planks fall away behind players as they cross.
 --
 -- If a player dies, they respawn at the temple door; the creature is moved

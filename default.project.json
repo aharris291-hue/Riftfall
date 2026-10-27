@@ -40,6 +40,9 @@
         },
         "RunComplete": {
           "$className": "RemoteEvent"
+        },
+        "ChangeOutfit": {
+          "$className": "RemoteEvent"
         }
       }
     },
@@ -65,16 +68,20 @@
         "CameraMinZoomDistance": 4,
         "CharacterWalkSpeed": 12,
         "CharacterJumpPower": 42,
-        "CharacterUseJumpPower": true
+        "CharacterUseJumpPower": true,
+        "LoadCharacterAppearance": false
       }
     },
-    "Workspace": {},
+    "Workspace": {
+      "Terrain": {
+        "$properties": {
+          "Decoration": true
+        }
+      }
+    },
     "Lighting": {
       "$properties": {
-        "Technology": "ShadowMap",
-        "ClockTime": 0.5,
-        "Brightness": 0.6,
-        "GlobalShadows": true
+        "Technology": "Future"
       }
     },
     "Players": {

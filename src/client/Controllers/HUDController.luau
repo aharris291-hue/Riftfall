@@ -6,7 +6,7 @@
 --   bottom-left    health, flashlight battery, stamina
 --   bottom-center  inventory (click/tap a slot or press 1-4 to use it; the
 --                  small X drops it) and radio subtitles above it
---   screen edges   red flash when hurt, dark pulse when the Hollow is near
+--   screen edges   red flash when hurt, dark pulse when the Rift Stalker is near
 --   full screen    note reader, death screen, end-of-demo results
 
 local Players = game:GetService("Players")
@@ -14,10 +14,12 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Items = require(ReplicatedStorage.Shared.Items)
 local Story = require(ReplicatedStorage.Shared.Story)
+local CharacterDesigns = require(ReplicatedStorage.Shared.CharacterDesigns)
 local ClientState = require(script.Parent.Parent.ClientState)
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
@@ -113,6 +115,128 @@ local damageFlash = 0
 ------------------------------------------------------------------------------
 -- Building
 ------------------------------------------------------------------------------
+
+-- Brightness option: brightens only this player's screen (exposure), so
+-- anyone who finds the night too dark can fix it without code changes.
+local BRIGHTNESS_LEVELS = {
+	{ Name = "Normal", Exposure = 0 },
+	{ Name = "Bright", Exposure = 0.6 },
+	{ Name = "Brightest", Exposure = 1.2 },
+}
+
+local function buildBrightnessButton()
+	local index = 1
+	local button = new("TextButton", {
+		Name = "Brightness",
+		Position = UDim2.fromOffset(16, 86),
+		Size = UDim2.fromOffset(180, 28),
+		BackgroundColor3 = COLORS.Panel,
+		BackgroundTransparency = 0.3,
+		BorderSizePixel = 0,
+		Font = FONT,
+		TextSize = 13,
+		TextColor3 = COLORS.Muted,
+		Text = "Brightness: Normal",
+		Parent = gui,
+	}, { corner(6) })
+	button.Activated:Connect(function()
+		index = index % #BRIGHTNESS_LEVELS + 1
+		local level = BRIGHTNESS_LEVELS[index]
+		Lighting.ExposureCompensation = Config.Lighting.ExposureCompensation + level.Exposure
+		button.Text = "Brightness: " .. level.Name
+	end)
+end
+
+-- Graphics option: "Fast" turns off the most expensive effects on this
+-- player's screen only (depth of field, bloom, light shadows, heavy rain),
+-- for slower computers and phones. The moon still casts shadows.
+local FAST_RAIN_RATE = 220
+local shadowLights: { [Light]: boolean } = setmetatable({}, { __mode = "k" }) :: any
+local fastGraphics = false
+
+local function applyFastToLight(inst: Instance)
+	if fastGraphics and inst:IsA("Light") and inst.Shadows then
+		shadowLights[inst] = true
+		inst.Shadows = false
+	end
+end
+
+local function setFastGraphics(fast: boolean)
+	fastGraphics = fast
+	for _, effect in Lighting:GetChildren() do
+		if effect:IsA("DepthOfFieldEffect") or effect:IsA("BloomEffect") or effect:IsA("SunRaysEffect") then
+			effect.Enabled = not fast
+		end
+	end
+	local camera = workspace.CurrentCamera
+	local emitter = camera and camera:FindFirstChild("RainEmitter")
+	local rain = emitter and emitter:FindFirstChild("Rain")
+	if rain and rain:IsA("ParticleEmitter") then
+		if rain:GetAttribute("FullRate") == nil then
+			rain:SetAttribute("FullRate", rain.Rate)
+		end
+		rain.Rate = if fast then FAST_RAIN_RATE else rain:GetAttribute("FullRate") :: number
+	end
+	if fast then
+		for _, inst in workspace:GetDescendants() do
+			applyFastToLight(inst)
+		end
+	else
+		for light in shadowLights do
+			light.Shadows = true
+		end
+		table.clear(shadowLights)
+	end
+end
+
+local function buildGraphicsButton()
+	local button = new("TextButton", {
+		Name = "Graphics",
+		Position = UDim2.fromOffset(16, 118),
+		Size = UDim2.fromOffset(180, 28),
+		BackgroundColor3 = COLORS.Panel,
+		BackgroundTransparency = 0.3,
+		BorderSizePixel = 0,
+		Font = FONT,
+		TextSize = 13,
+		TextColor3 = COLORS.Muted,
+		Text = "Graphics: Best",
+		Parent = gui,
+	}, { corner(6) })
+	-- Lights created later (flashlights, flares, a rebuilt level) follow the setting.
+	workspace.DescendantAdded:Connect(applyFastToLight)
+	button.Activated:Connect(function()
+		setFastGraphics(not fastGraphics)
+		button.Text = if fastGraphics then "Graphics: Fast" else "Graphics: Best"
+	end)
+end
+
+-- Outfit option: cycles Jax's outfits (cosmetic; the server applies it).
+local function buildOutfitButton()
+	local button = new("TextButton", {
+		Name = "Outfit",
+		Position = UDim2.fromOffset(202, 86),
+		Size = UDim2.fromOffset(154, 28),
+		BackgroundColor3 = COLORS.Panel,
+		BackgroundTransparency = 0.3,
+		BorderSizePixel = 0,
+		Font = FONT,
+		TextSize = 13,
+		TextColor3 = COLORS.Muted,
+		Text = "Outfit",
+		Parent = gui,
+	}, { corner(6) })
+	local function refresh()
+		local id = player:GetAttribute("OutfitId")
+		local design = if type(id) == "string" then CharacterDesigns.Designs[id] else nil
+		button.Text = "Outfit: " .. (if design then design.Title else "Default Outfit")
+	end
+	player:GetAttributeChangedSignal("OutfitId"):Connect(refresh)
+	refresh()
+	button.Activated:Connect(function()
+		Remotes.ChangeOutfit:FireServer()
+	end)
+end
 
 local function buildObjective()
 	local frame = panel({
@@ -708,11 +832,14 @@ local function showEnd(stats: any)
 		return
 	end
 	endStats.Text = string.format(
-		"Time: %s\nDeaths: %d\nNotes found: %d / %d\nRift Shard recovered: %s",
+		"Time: %s\nDeaths: %d\nNotes found: %d / %d\nExpedition tags found: %d / %d%s\nRift Shard recovered: %s",
 		formatTime(tonumber(stats.Time) or 0),
 		tonumber(stats.Deaths) or 0,
 		tonumber(stats.NotesRead) or 0,
 		tonumber(stats.NotesTotal) or 0,
+		tonumber(stats.EvidenceFound) or 0,
+		tonumber(stats.EvidenceTotal) or 0,
+		if stats.FoundDaniel then " (Daniel's tag returned)" else "",
 		if stats.FoundShard then "Yes" else "No (it's in the temple...)"
 	)
 	endFrame.Visible = true
@@ -749,6 +876,9 @@ function HUDController.Init()
 	})
 	buildEdges()
 	buildObjective()
+	buildBrightnessButton()
+	buildOutfitButton()
+	buildGraphicsButton()
 	buildToasts()
 	buildBars()
 	buildInventory()
