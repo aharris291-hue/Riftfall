@@ -877,7 +877,10 @@ function HUDController.Init()
 	buildEdges()
 	buildObjective()
 	buildBrightnessButton()
-	buildOutfitButton()
+	-- Outfits only apply to the built-in body, not a custom StarterCharacter.
+	if not game:GetService("StarterPlayer"):FindFirstChild("StarterCharacter") then
+		buildOutfitButton()
+	end
 	buildGraphicsButton()
 	buildToasts()
 	buildBars()

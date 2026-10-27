@@ -57,7 +57,16 @@ local function outfitFor(player: Player): string
 	return pick
 end
 
+-- A custom player model (StarterPlayer > StarterCharacter, e.g. Jax made in
+-- Blender) already looks right, so the outfit system leaves it alone.
+local function hasCustomCharacter(): boolean
+	return game:GetService("StarterPlayer"):FindFirstChild("StarterCharacter") ~= nil
+end
+
 local function dressPlayer(player: Player, character: Model)
+	if hasCustomCharacter() then
+		return
+	end
 	-- Wait briefly for the body parts to exist.
 	for _, name in { "Head", "UpperTorso", "LowerTorso" } do
 		if not character:FindFirstChild(name) then
@@ -77,6 +86,9 @@ local function dressPlayer(player: Player, character: Model)
 end
 
 local function onChangeOutfit(player: Player)
+	if hasCustomCharacter() then
+		return
+	end
 	if not PlayerData.RateLimit(player, "Outfit", 1) then
 		return
 	end
