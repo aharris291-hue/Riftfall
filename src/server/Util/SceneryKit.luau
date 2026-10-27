@@ -119,6 +119,66 @@ local function toModel(entry: Instance): Model?
 	return model
 end
 
+-- Plants players walk through (trees get a simple trunk collider instead).
+local WALK_THROUGH_SLOTS = { JungleTree = true, Fern = true }
+local MAX_PARTICLE_RATE = 12
+
+-- Store models are often built for close-up screenshots, not for being
+-- copied 200 times. This keeps each copy cheap for the physics engine and
+-- the graphics card: nothing in scenery needs touch events, small parts and
+-- plants don't need collision, lights don't cast shadows (a torch keeps
+-- just one light), and particle effects are toned down.
+local function optimizeCopy(copy: Model, slot: string)
+	local walkThrough = WALK_THROUGH_SLOTS[slot] == true
+	local keptLight = false
+	for _, d in copy:GetDescendants() do
+		if d:IsA("BasePart") then
+			d.Anchored = true
+			d.CanTouch = false
+			local biggest = math.max(d.Size.X, d.Size.Y, d.Size.Z)
+			if walkThrough or biggest < 3 then
+				d.CanCollide = false
+				d.CanQuery = false
+			end
+			if slot == "Fern" or biggest < 1.5 then
+				d.CastShadow = false
+			end
+		elseif d:IsA("LuaSourceContainer") or d:IsA("Camera") then
+			-- Scripts inside library models never run; cameras are leftovers.
+			d:Destroy()
+		elseif d:IsA("Light") then
+			-- A torch only needs one flame light (store torches often have two).
+			if keptLight and slot == "Torch" then
+				d:Destroy()
+			else
+				keptLight = true
+				d.Shadows = false
+			end
+		elseif d:IsA("ParticleEmitter") then
+			d.Rate = math.min(d.Rate, MAX_PARTICLE_RATE)
+		end
+	end
+end
+
+-- Trees are walk-through above, so give each one a simple invisible trunk
+-- that players and the creature still bump into.
+local function addTrunkCollider(copy: Model)
+	local box, size = copy:GetBoundingBox()
+	local thickness = math.clamp(math.min(size.X, size.Z) * 0.12, 1.2, 4)
+	local height = math.min(size.Y, 14)
+	local bottom = box * CFrame.new(0, -size.Y / 2, 0)
+	local trunk = Instance.new("Part")
+	trunk.Name = "TrunkCollider"
+	trunk.Anchored = true
+	trunk.CanTouch = false
+	trunk.Transparency = 1
+	trunk.CastShadow = false
+	trunk.Shape = Enum.PartType.Cylinder
+	trunk.Size = Vector3.new(height, thickness, thickness)
+	trunk.CFrame = CFrame.new(bottom.Position + Vector3.new(0, height / 2, 0)) * CFrame.Angles(0, 0, math.rad(90))
+	trunk.Parent = copy
+end
+
 -- Places a copy of a real model from ServerStorage.RiftfallAssets, if the
 -- slot has one. Returns the copy, or nil to build the placeholder instead.
 -- Scripts inside library models never run: they are removed from the copy.
@@ -133,14 +193,11 @@ local function fromLibrary(slot: string, parent: Instance, at: CFrame, rng: Rand
 	if not copy then
 		return nil
 	end
-	for _, d in copy:GetDescendants() do
-		if d:IsA("BasePart") then
-			d.Anchored = true
-		elseif d:IsA("LuaSourceContainer") then
-			d:Destroy()
-		end
-	end
+	optimizeCopy(copy, slot)
 	copy:PivotTo(if rng then at * CFrame.Angles(0, rng:NextNumber(-0.15, 0.15), 0) else at)
+	if slot == SceneryKit.Slots.Tree then
+		addTrunkCollider(copy)
+	end
 	copy.Parent = parent
 	return copy
 end
@@ -151,9 +208,10 @@ local function addPointLight(parent: Instance, color: Color3, range: number, bri
 	light.Color = color
 	light.Range = range
 	light.Brightness = brightness
-	-- Torch fire casts soft shadows (with Future lighting) so roots and
-	-- arches throw moving silhouettes.
-	light.Shadows = true
+	-- No shadows: a dozen shadow-casting torches is the single biggest cost
+	-- for the graphics card with Future lighting, and the moon still casts
+	-- shadows.
+	light.Shadows = false
 	light.Parent = parent
 end
 

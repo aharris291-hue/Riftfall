@@ -2,6 +2,27 @@
 
 Feedback from play sessions, and what was done about each point. Newest first.
 
+## Round 5 — Adam, 2026-10-27: "Everything worked fine except that it was laggy"
+
+Measured offline in the merged place (his models plus the Chapter 1
+expansion), before and after:
+
+| What | Before | After |
+|---|---|---|
+| Store tree copies (19 detailed mesh parts each) | 223 | 178 (jungle trees 170 -> 125) |
+| Mesh parts that players and the creature collide with | 4,516 | 189 (trees and ferns are walk-through; each tree gets one invisible trunk collider) |
+| Parts listening for touch events | 4,644 | 0 in scenery |
+| Lights casting shadows (Future lighting's biggest cost) | 33 (two per store torch) | 3 (one light per torch, no torch shadows) |
+| Fire/smoke particles per second | 1,800 | 510 (capped per effect) |
+| Leftover cameras inside store models | 238 | 0 |
+
+Simpler collision also makes the creature's pathfinding much cheaper. A new
+**Graphics: Best / Fast** button under Brightness turns off depth of field,
+bloom, light shadows and most of the rain for that player only. The
+optimisations live in `SceneryKit.optimizeCopy`, so any future store model
+gets them automatically. Not measured in Roblox itself (no frame-rate
+numbers yet).
+
 ## Round 4 — Adam, 2026-10-27: first real models
 
 Adam added Toolbox models to all nine scenery slots and sent his saved place.

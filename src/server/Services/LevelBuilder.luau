@@ -401,7 +401,7 @@ local function buildJungle(level: Folder, rng: Random)
 
 	local placed = 0
 	local attempts = 0
-	while placed < 170 and attempts < 2000 do
+	while placed < 125 and attempts < 2000 do
 		attempts += 1
 		local x = rng:NextNumber(-62, 62)
 		local z = rng:NextNumber(-18, 212)

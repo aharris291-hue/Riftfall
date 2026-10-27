@@ -147,6 +147,70 @@ local function buildBrightnessButton()
 	end)
 end
 
+-- Graphics option: "Fast" turns off the most expensive effects on this
+-- player's screen only (depth of field, bloom, light shadows, heavy rain),
+-- for slower computers and phones. The moon still casts shadows.
+local FAST_RAIN_RATE = 220
+local shadowLights: { [Light]: boolean } = setmetatable({}, { __mode = "k" }) :: any
+local fastGraphics = false
+
+local function applyFastToLight(inst: Instance)
+	if fastGraphics and inst:IsA("Light") and inst.Shadows then
+		shadowLights[inst] = true
+		inst.Shadows = false
+	end
+end
+
+local function setFastGraphics(fast: boolean)
+	fastGraphics = fast
+	for _, effect in Lighting:GetChildren() do
+		if effect:IsA("DepthOfFieldEffect") or effect:IsA("BloomEffect") or effect:IsA("SunRaysEffect") then
+			effect.Enabled = not fast
+		end
+	end
+	local camera = workspace.CurrentCamera
+	local emitter = camera and camera:FindFirstChild("RainEmitter")
+	local rain = emitter and emitter:FindFirstChild("Rain")
+	if rain and rain:IsA("ParticleEmitter") then
+		if rain:GetAttribute("FullRate") == nil then
+			rain:SetAttribute("FullRate", rain.Rate)
+		end
+		rain.Rate = if fast then FAST_RAIN_RATE else rain:GetAttribute("FullRate") :: number
+	end
+	if fast then
+		for _, inst in workspace:GetDescendants() do
+			applyFastToLight(inst)
+		end
+	else
+		for light in shadowLights do
+			light.Shadows = true
+		end
+		table.clear(shadowLights)
+	end
+end
+
+local function buildGraphicsButton()
+	local button = new("TextButton", {
+		Name = "Graphics",
+		Position = UDim2.fromOffset(16, 118),
+		Size = UDim2.fromOffset(180, 28),
+		BackgroundColor3 = COLORS.Panel,
+		BackgroundTransparency = 0.3,
+		BorderSizePixel = 0,
+		Font = FONT,
+		TextSize = 13,
+		TextColor3 = COLORS.Muted,
+		Text = "Graphics: Best",
+		Parent = gui,
+	}, { corner(6) })
+	-- Lights created later (flashlights, flares, a rebuilt level) follow the setting.
+	workspace.DescendantAdded:Connect(applyFastToLight)
+	button.Activated:Connect(function()
+		setFastGraphics(not fastGraphics)
+		button.Text = if fastGraphics then "Graphics: Fast" else "Graphics: Best"
+	end)
+end
+
 -- Outfit option: cycles Jax's outfits (cosmetic; the server applies it).
 local function buildOutfitButton()
 	local button = new("TextButton", {
@@ -814,6 +878,7 @@ function HUDController.Init()
 	buildObjective()
 	buildBrightnessButton()
 	buildOutfitButton()
+	buildGraphicsButton()
 	buildToasts()
 	buildBars()
 	buildInventory()

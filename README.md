@@ -49,6 +49,7 @@ To stop, press the red ■ *Stop* button (or **Shift+F5**).
 | Use inventory item (bandage, battery, or **throw a flare**) | **1-4**, or click the slot | Tap the slot |
 | Drop item | Click the small **X** on the slot | Tap the **X** |
 | Brightness (too dark?) | Click **Brightness** under the objective | Tap **Brightness** |
+| Laggy? | Click **Graphics** (under Brightness) to switch to **Fast** | Tap **Graphics** |
 | Change Jax's outfit | Click **Outfit** under the objective | Tap **Outfit** |
 | Talk to Serra, Kade, Lira | Press **E** at the Talk prompt | Tap the prompt |
 | Skip subtitle / close note | **Enter**, or click it | Tap it |

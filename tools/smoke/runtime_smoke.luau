@@ -170,7 +170,7 @@ local function req(n)
 		return loaded[path]
 	end
 	local src = fs.readFile(fileFor(path))
-	for _, ev in { "Activated", "MouseEnter", "MouseLeave", "HealthChanged", "Died", "Triggered" } do
+	for _, ev in { "Activated", "MouseEnter", "MouseLeave", "HealthChanged", "Died", "Triggered", "DescendantAdded" } do
 		src = src:gsub("([%w_]+)%." .. ev .. ":Connect%(", '__sig(%1, "' .. ev .. '"):Connect(')
 	end
 	local e = table.clone(env)

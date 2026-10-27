@@ -159,3 +159,13 @@ attribute shows what it is doing.
 | J9 | Finish the level with Daniel Kade's tag found | Results show "Expedition tags found: x / 4 (Daniel's tag returned)" and Kade has two extra lines |
 | J10 | Play Again | The gate is chained and closed again, flares and tags are back, the sighting plays again |
 | J11 | Two players: one cuts the chain | The gate opens for both; the second player does not need cutters |
+
+## K. Performance (lag fix)
+
+| # | Do this | Expected |
+|---|---|---|
+| K1 | Press Play and walk the whole level | Noticeably smoother than before, especially in the jungle and at the camp |
+| K2 | Walk into a tree | You stop at the trunk; leaves and ferns don't block you |
+| K3 | Click **Graphics** under Brightness | Changes to **Graphics: Fast**: background blur and glow switch off, rain gets lighter, torches look the same. Click again for **Best** |
+| K4 | In Studio, press **Ctrl+Shift+F1** while playing | The stats panel shows FPS; tell Claude the number in Best and in Fast |
+| K5 | Watch the creature chase you around trees | It still finds its way around them |
