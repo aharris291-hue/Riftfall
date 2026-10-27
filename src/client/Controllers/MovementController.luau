@@ -14,6 +14,7 @@ local TweenService = game:GetService("TweenService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local ClientState = require(script.Parent.Parent.ClientState)
+local CrouchPose = require(script.Parent.CrouchPose)
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local player = Players.LocalPlayer
@@ -31,6 +32,7 @@ local function setCrouch(on: boolean)
 	end
 	ClientState.Crouching = on
 	Remotes.SetCrouch:FireServer(on)
+	CrouchPose.SetLocal(on)
 	if humanoid then
 		TweenService:Create(humanoid, TweenInfo.new(0.25), {
 			CameraOffset = if on then Vector3.new(0, -1.6, 0) else Vector3.zero,

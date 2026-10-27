@@ -499,25 +499,55 @@ local function buildBars()
 	makeBar(frame, "Stamina", COLORS.Stamina, 80, 6)
 end
 
+-- Shows an item's 3D model (ReplicatedStorage > ItemModels > <item id>)
+-- inside an inventory slot. Items without a model get a colored badge.
+local function showItemIcon(icon: ViewportFrame, itemId: string?)
+	icon:SetAttribute("ItemId", itemId)
+	icon:ClearAllChildren()
+	icon.BackgroundTransparency = 1
+	if not itemId then
+		return
+	end
+	local models = ReplicatedStorage:FindFirstChild("ItemModels")
+	local template = models and models:FindFirstChild(itemId)
+	if not (template and template:IsA("BasePart")) then
+		icon.BackgroundTransparency = 0.2
+		icon.BackgroundColor3 = Items[itemId].Color
+		return
+	end
+	local model = template:Clone()
+	model.Anchored = true
+	model.CFrame = CFrame.Angles(math.rad(-20), math.rad(35), 0)
+	model.Parent = icon
+	local camera = Instance.new("Camera")
+	camera.FieldOfView = 30
+	local radius = model.Size.Magnitude / 2
+	local distance = radius / math.tan(math.rad(camera.FieldOfView / 2)) * 1.05
+	camera.CFrame = CFrame.lookAt(Vector3.new(0, radius * 0.25, distance), Vector3.zero)
+	camera.Parent = icon
+	icon.CurrentCamera = camera
+end
+
 local function refreshInventory()
 	for i, button in slotButtons do
 		local slot = inventoryCopy[i]
 		local nameLabel = button:FindFirstChild("ItemName") :: TextLabel
 		local countLabel = button:FindFirstChild("Count") :: TextLabel
 		local dropButton = button:FindFirstChild("Drop") :: TextButton
-		local swatch = button:FindFirstChild("Swatch") :: Frame
-		if slot and Items[slot.Id] then
-			local def = Items[slot.Id]
+		local icon = button:FindFirstChild("Icon") :: ViewportFrame
+		local itemId = if slot and Items[slot.Id] then slot.Id else nil
+		if icon:GetAttribute("ItemId") ~= itemId then
+			showItemIcon(icon, itemId)
+		end
+		if itemId then
+			local def = Items[itemId]
 			nameLabel.Text = def.DisplayName
 			countLabel.Text = if slot.Count > 1 then "x" .. slot.Count else ""
 			dropButton.Visible = not def.KeyItem
-			swatch.Visible = true
-			swatch.BackgroundColor3 = def.Color
 		else
 			nameLabel.Text = ""
 			countLabel.Text = ""
 			dropButton.Visible = false
-			swatch.Visible = false
 		end
 	end
 end
@@ -560,22 +590,24 @@ local function buildInventory()
 			Size = UDim2.fromOffset(14, 14),
 			Parent = button,
 		})
-		new("Frame", {
-			Name = "Swatch",
+		new("ViewportFrame", {
+			Name = "Icon",
 			AnchorPoint = Vector2.new(0.5, 0),
-			Position = UDim2.new(0.5, 0, 0, 14),
-			Size = UDim2.fromOffset(18, 18),
-			BackgroundColor3 = COLORS.Text,
+			Position = UDim2.new(0.5, 0, 0, 4),
+			Size = UDim2.fromOffset(46, 46),
+			BackgroundTransparency = 1,
 			BorderSizePixel = 0,
-			Visible = false,
+			Ambient = Color3.fromRGB(170, 170, 170),
+			LightColor = Color3.fromRGB(255, 245, 230),
+			LightDirection = Vector3.new(-1, -1, -1),
 			Parent = button,
-		}, { corner(9) })
+		}, { corner(8) })
 		label({
 			Name = "ItemName",
 			Text = "",
-			TextSize = 12,
+			TextSize = 11,
 			TextXAlignment = Enum.TextXAlignment.Center,
-			Position = UDim2.fromOffset(2, 36),
+			Position = UDim2.fromOffset(2, 52),
 			Size = UDim2.new(1, -4, 0, 16),
 			Parent = button,
 		})

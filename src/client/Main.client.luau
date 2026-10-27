@@ -10,11 +10,13 @@ local MovementController = require(Controllers.MovementController)
 local FlashlightController = require(Controllers.FlashlightController)
 local AtmosphereController = require(Controllers.AtmosphereController)
 local AudioController = require(Controllers.AudioController)
+local CrouchPose = require(Controllers.CrouchPose)
 
 ClientSettings.Init()
 AudioController.Init()
 HUDController.Init()
 MovementController.Init()
+CrouchPose.Init()
 FlashlightController.Init()
 AtmosphereController.Init()
 

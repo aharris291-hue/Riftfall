@@ -188,6 +188,46 @@ local function makePickup(parent: Instance, itemId: string, displayName: string,
 	})
 	part:SetAttribute("ItemId", itemId)
 	part:SetAttribute("Count", 1)
+	-- Show the item's real model (ReplicatedStorage > ItemModels) lying on
+	-- the ground; the cube stays as an invisible handle for the prompt.
+	local models = ReplicatedStorage:FindFirstChild("ItemModels")
+	local template = models and models:FindFirstChild(itemId)
+	if template and template:IsA("BasePart") then
+		part.Transparency = 1
+		local model = template:Clone()
+		model.Name = "Model"
+		model.Anchored = true
+		model.CanCollide = false
+		model.CanQuery = false
+		model.CanTouch = false
+		model.CastShadow = false
+		-- Rest it on the ground under the handle, turned at a random angle.
+		-- Long, thin items (flares, bolt cutters) lie down instead of standing.
+		local lieDown = model.Size.Y > 1.5 * math.max(model.Size.X, model.Size.Z)
+		local height = if lieDown then model.Size.Z else model.Size.Y
+		local groundY = position.Y - part.Size.Y / 2
+		model.CFrame = CFrame.new(position.X, groundY + height / 2, position.Z)
+			* CFrame.Angles(0, math.rad((#itemId * 47 + math.floor(position.X * 13)) % 360), 0)
+			* CFrame.Angles(if lieDown then math.pi / 2 else 0, 0, 0)
+		model.Parent = part
+		-- Freshly filled terrain is not solid to rays for a moment, so settle
+		-- the item onto whatever is really below it a little later.
+		task.delay(2.5, function()
+			if not part.Parent then
+				return
+			end
+			local params = RaycastParams.new()
+			params.FilterType = Enum.RaycastFilterType.Exclude
+			params.FilterDescendantsInstances = { part }
+			params.RespectCanCollide = true
+			local hit = workspace:Raycast(position + Vector3.new(0, 4, 0), Vector3.new(0, -12, 0), params)
+			if hit then
+				local lift = hit.Position.Y - groundY
+				part.Position += Vector3.new(0, lift, 0)
+				model.Position += Vector3.new(0, lift, 0)
+			end
+		end)
+	end
 	-- A faint glow keeps pickups findable on low graphics settings (fairness).
 	addLight(part, color, 8, 0.8)
 	makePrompt(part, "Pick up", displayName)
