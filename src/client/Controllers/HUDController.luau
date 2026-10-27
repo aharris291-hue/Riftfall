@@ -768,11 +768,14 @@ local function showEnd(stats: any)
 		return
 	end
 	endStats.Text = string.format(
-		"Time: %s\nDeaths: %d\nNotes found: %d / %d\nRift Shard recovered: %s",
+		"Time: %s\nDeaths: %d\nNotes found: %d / %d\nExpedition tags found: %d / %d%s\nRift Shard recovered: %s",
 		formatTime(tonumber(stats.Time) or 0),
 		tonumber(stats.Deaths) or 0,
 		tonumber(stats.NotesRead) or 0,
 		tonumber(stats.NotesTotal) or 0,
+		tonumber(stats.EvidenceFound) or 0,
+		tonumber(stats.EvidenceTotal) or 0,
+		if stats.FoundDaniel then " (Daniel's tag returned)" else "",
 		if stats.FoundShard then "Yes" else "No (it's in the temple...)"
 	)
 	endFrame.Visible = true

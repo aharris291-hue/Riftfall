@@ -16,6 +16,7 @@ export type Data = {
 	CheckpointSpawn: Vector3?,
 	Deaths: number,
 	NotesRead: { [string]: boolean },
+	Evidence: { [string]: boolean }, -- Expedition ID tags found (optional).
 	StartTime: number,
 	Finished: boolean,
 	Busy: boolean, -- True while an item use is in progress.
@@ -35,6 +36,7 @@ local function newData(): Data
 		CheckpointSpawn = nil,
 		Deaths = 0,
 		NotesRead = {},
+		Evidence = {},
 		StartTime = os.clock(),
 		Finished = false,
 		Busy = false,

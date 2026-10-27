@@ -46,7 +46,7 @@ To stop, press the red ■ *Stop* button (or **Shift+F5**).
 | Crouch (quiet) | Press **C** (toggles) | **Crouch** button |
 | Flashlight | **F** | **Light** button |
 | Interact (pick up, read, turn) | Hold/press **E** at the prompt | Tap the prompt |
-| Use inventory item | **1-4**, or click the slot | Tap the slot |
+| Use inventory item (bandage, battery, or **throw a flare**) | **1-4**, or click the slot | Tap the slot |
 | Drop item | Click the small **X** on the slot | Tap the **X** |
 | Brightness (too dark?) | Click **Brightness** under the objective | Tap **Brightness** |
 | Change Jax's outfit | Click **Outfit** under the objective | Tap **Outfit** |

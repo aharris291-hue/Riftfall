@@ -27,6 +27,10 @@ local Designs = CharacterDesigns.Designs
 
 local CharacterService = {}
 
+-- Set by Main: runs after a player talks to a story character (for example,
+-- Kade hands over his bolt cutters).
+CharacterService.OnTalk = nil :: ((player: Player, characterId: string, phase: string) -> ())?
+
 -- Talk prompt dialogue per character and phase.
 local TALK_DIALOGUE: { [string]: { [string]: string } } = {
 	Serra = { Explore = "TalkSerra", Escape = "TalkSerra" },
@@ -183,6 +187,9 @@ local function addTalkPrompt(model: Model, characterId: string, phase: string)
 	prompt.Triggered:Connect(function(player)
 		if PlayerData.RateLimit(player, "Talk", 2) then
 			StoryService.PlayDialogue(dialogue[phase] or dialogue.Explore, player)
+			if CharacterService.OnTalk then
+				CharacterService.OnTalk(player, characterId, phase)
+			end
 		end
 	end)
 end

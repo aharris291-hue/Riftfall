@@ -14,15 +14,19 @@ local InventoryService = require(script.Parent.InventoryService)
 local PuzzleService = require(script.Parent.PuzzleService)
 local StalkerService = require(script.Parent.StalkerService)
 local EscapeService = require(script.Parent.EscapeService)
+local DistractionService = require(script.Parent.DistractionService)
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 
 local GameService = {}
 
 local function countNotes(): number
+	-- Evidence tags are shown like notes but counted separately.
 	local total = 0
-	for _ in Story.Notes do
-		total += 1
+	for id in Story.Notes do
+		if not table.find(Story.Evidence, id) then
+			total += 1
+		end
 	end
 	return total
 end
@@ -37,9 +41,20 @@ local function finishRun(player: Player)
 	for _ in data.NotesRead do
 		notesRead += 1
 	end
+	local evidenceFound = 0
+	for _ in data.Evidence do
+		evidenceFound += 1
+	end
 	StoryService.SetObjective("Done")
 	StoryService.PlayDialogue("Done", player)
+	if data.Evidence.TagDaniel then
+		-- The optional discovery pays off: Kade gets his brother's tag back.
+		StoryService.PlayDialogue("DoneDaniel", player)
+	end
 	Remotes.RunComplete:FireClient(player, {
+		EvidenceFound = evidenceFound,
+		EvidenceTotal = #Story.Evidence,
+		FoundDaniel = data.Evidence.TagDaniel == true,
 		Time = os.clock() - data.StartTime,
 		Deaths = data.Deaths,
 		NotesRead = notesRead,
@@ -61,6 +76,7 @@ end
 -- Rebuilds the world and restarts every player from the beginning.
 local function fullReset()
 	EscapeService.Reset()
+	DistractionService.Reset()
 	PuzzleService.Reset()
 	StoryService.Reset()
 	LevelBuilder.Build()

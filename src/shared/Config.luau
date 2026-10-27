@@ -60,6 +60,14 @@ Config.Stalker = {
 	RepathInterval = 0.6,
 }
 
+-- Distraction flares: thrown in front of you, they burn and make noise the
+-- Rift Stalker can hear from far away, so it goes to investigate them.
+Config.Flare = {
+	ThrowDistance = 18,
+	BurnTime = 14,
+	NoiseRadius = 70,
+}
+
 Config.Escape = {
 	DebrisDamage = 30,
 	DebrisWarningTime = 1.3, -- Seconds the red warning circle shows before a rock lands.

@@ -15,6 +15,8 @@ export type ItemDef = {
 	UseTime: number,
 	HealAmount: number?,
 	BatteryAmount: number?,
+	-- Thrown when used (a distraction flare).
+	Throwable: boolean?,
 }
 
 local Items: { [string]: ItemDef } = {
@@ -37,6 +39,25 @@ local Items: { [string]: ItemDef } = {
 		KeyItem = false,
 		UseTime = 0.8,
 		BatteryAmount = 50,
+	},
+	Flare = {
+		Id = "Flare",
+		DisplayName = "Flare",
+		Description = "Throw it to draw the creature away. It burns loud and bright for a while.",
+		MaxStack = 2,
+		Color = Color3.fromRGB(255, 70, 50),
+		KeyItem = false,
+		UseTime = 0.4,
+		Throwable = true,
+	},
+	BoltCutters = {
+		Id = "BoltCutters",
+		DisplayName = "Bolt Cutters",
+		Description = "Kade's bolt cutters. Strong enough for the chain on the ruins gate.",
+		MaxStack = 1,
+		Color = Color3.fromRGB(200, 60, 50),
+		KeyItem = true,
+		UseTime = 0,
 	},
 	RiftShard = {
 		Id = "RiftShard",

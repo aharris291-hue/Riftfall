@@ -13,6 +13,7 @@ local Story = {}
 Story.Objectives = {
 	Start = "Follow the trail north toward the distress signal",
 	Camp = "Search the abandoned expedition camp",
+	Gate = "Get through the chained ruins gate. Kade has bolt cutters",
 	Ruins = "Cross the ruins and enter the temple. Stay out of sight.",
 	Puzzle = "Open the sealed temple door",
 	Escape = "The temple is collapsing. GET OUT!",
@@ -66,6 +67,54 @@ Story.Dialogue = {
 			Speaker = "KADE",
 			Text = "Leg's busted, so I'm holding this camp. Grab what you need. Read the journal on the table.",
 			Duration = 5,
+		},
+		{
+			Speaker = "KADE",
+			Text = "Heading for the ruins? Gate's chained. Come talk to me first.",
+			Duration = 4,
+		},
+	},
+	Sighting = {
+		{
+			Speaker = "SERRA (AI)",
+			Text = "Jax. Stop. Something just crossed the trail ahead. It flickered... like it wasn't fully here.",
+			Duration = 5,
+		},
+		{
+			Speaker = "SERRA (AI)",
+			Text = "It's gone. Not dead, not hiding. Gone. I hate this place.",
+			Duration = 4,
+		},
+	},
+	Gate = {
+		{
+			Speaker = "SERRA (AI)",
+			Text = "Heavy chain, new padlock. Someone sealed the ruins after Rourke's team went in.",
+			Duration = 4.5,
+		},
+		{
+			Speaker = "SERRA (AI)",
+			Text = "Kade's camp is right behind us. He might have something to cut it.",
+			Duration = 4,
+		},
+	},
+	KadeCutters = {
+		{
+			Speaker = "KADE",
+			Text = "The gate? Here, take my bolt cutters. I sealed it myself after I heard that thing.",
+			Duration = 4.5,
+		},
+		{
+			Speaker = "KADE",
+			Text = "Take a flare too. Throw one and that thing goes to see what's burning. Buys you time.",
+			Duration = 4.5,
+		},
+	},
+	GateOpen = {
+		{
+			Speaker = "SERRA (AI)",
+			Text = "Chain's off. Ruins ahead. From here on, we move quietly.",
+			Duration = 3.5,
 		},
 	},
 	Ruins = {
@@ -165,6 +214,18 @@ Story.Dialogue = {
 			Duration = 4,
 		},
 	},
+	DoneDaniel = {
+		{
+			Speaker = "KADE",
+			Text = "That tag... Daniel Kade. That's my brother's. Where did you...",
+			Duration = 4.5,
+		},
+		{
+			Speaker = "KADE",
+			Text = "Twelve years I've been looking. Thank you, Jax. Whatever's down there, I'm going with you.",
+			Duration = 5,
+		},
+	},
 	TalkKadeEnd = {
 		{
 			Speaker = "KADE",
@@ -181,8 +242,29 @@ Story.Dialogue = {
 	},
 }
 
+-- Optional evidence: ID tags from the lost Rourke expedition, hidden around
+-- the level. They are shown like notes but counted separately on the
+-- results screen, and finding Daniel's tag changes the ending.
+Story.Evidence = { "TagOkafor", "TagHale", "TagReyes", "TagDaniel" }
+
 -- Readable notes found in the world. The camp journal holds the puzzle clue.
 Story.Notes = {
+	TagOkafor = {
+		Title = "ID tag: Dr. Amara Okafor",
+		Body = 'ROURKE EXPEDITION - GEOLOGY\nDr. Amara Okafor\n\nScratched on the back, very small:\n"The ground here is warm at night. Rock shouldn\'t be warm."',
+	},
+	TagHale = {
+		Title = "ID tag: Tomas Hale",
+		Body = "ROURKE EXPEDITION - PILOT\nTomas Hale\n\nThe chain has been snapped, not unclasped. Something pulled it off.",
+	},
+	TagReyes = {
+		Title = "ID tag: Inez Reyes",
+		Body = 'ROURKE EXPEDITION - RADIO\nInez Reyes\n\nThe tag is bent, as if someone gripped it very hard. On the back:\n"Signal isn\'t ours. It answers."',
+	},
+	TagDaniel = {
+		Title = "ID tag: Daniel Kade",
+		Body = "ROURKE EXPEDITION - SECURITY\nDaniel Kade\n\nKade's brother. The tag lies half-buried in moss beneath the broken arch, as if it was dropped while running.\n\nKade will want this.",
+	},
 	Soldier = {
 		Title = "A soldier in the ruins",
 		Body = "Heavy military armour. Not Rourke's team, and not ours.\n\nViolet crystal has grown straight through the chest plate. The red visor is still flickering, and the core in its chest is warm to the touch.\n\nIt isn't breathing. You're almost sure it isn't breathing.",

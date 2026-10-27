@@ -1,6 +1,11 @@
 -- Smoke test: load real modules under Lune with mocked Roblox services, to
 -- catch bad property names/types in instance construction code.
 local roblox = require("@lune/roblox")
+-- Lune has no PivotTo; count calls so the sighting walk can be checked.
+local pivotCalls = 0
+roblox.implementMethod("Model", "PivotTo", function()
+	pivotCalls += 1
+end)
 local luau = require("@lune/luau")
 local fs = require("@lune/fs")
 local process = require("@lune/process")
@@ -251,7 +256,16 @@ Remotes.InventoryChanged.OnClientEvent:Fire({
 	false,
 })
 Remotes.ShowNote.OnClientEvent:Fire("Journal")
-Remotes.RunComplete.OnClientEvent:Fire({ Time = 600, Deaths = 2, NotesRead = 3, NotesTotal = 4, FoundShard = true })
+Remotes.RunComplete.OnClientEvent:Fire({
+	Time = 600,
+	Deaths = 2,
+	NotesRead = 3,
+	NotesTotal = 4,
+	EvidenceFound = 4,
+	EvidenceTotal = 4,
+	FoundDaniel = true,
+	FoundShard = true,
+})
 attrs.Battery = 40
 attrs.FlashlightOn = true
 RenderStepped:Fire(1 / 60)
@@ -285,7 +299,18 @@ assert(Inventory.Add(fakePlayer, "Bandage", 2), "fills bandage stack 2")
 assert(not Inventory.Add(fakePlayer, "Bandage", 1), "bandages now full")
 assert(Inventory.Count(fakePlayer, "Bandage") == 6, "6 bandages")
 assert(not Inventory.Add(fakePlayer, "Nope", 1), "unknown item rejected")
+assert(Inventory.Remove(fakePlayer, "Bandage", 2) and Inventory.Count(fakePlayer, "Bandage") == 4, "remove 2")
+assert(not Inventory.Remove(fakePlayer, "BoltCutters", 1), "cannot remove what you lack")
 print("inventory rules ok")
+-- Chapter 1 expansion services load, and the sighting creature cleans up.
+local Gate = req(node("src/server/Services/GateService"))
+local Distraction = req(node("src/server/Services/DistractionService"))
+assert(type(Gate.OnTalk) == "function" and type(Distraction.Throw) == "function", "new services")
+Stalker.PlaySighting(roblox.Vector3.new(30, 4, 150), roblox.Vector3.new(-30, 4, 150), 1)
+assert(pivotCalls > 10, "sighting walks")
+assert(workspace:FindFirstChild("RiftStalkerSighting") == nil, "sighting removed")
+Stalker.ReportNoise(roblox.Vector3.new(0, 0, 0), 70, 14)
+print("chapter 1 expansion ok")
 -- Character designs (server): dress a fake R15 rig as every design.
 local Character = req(node("src/server/Services/CharacterService"))
 local R15 = {

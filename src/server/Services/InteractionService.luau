@@ -8,6 +8,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Items = require(ReplicatedStorage.Shared.Items)
+local Story = require(ReplicatedStorage.Shared.Story)
 local Zones = require(script.Parent.Parent.Util.Zones)
 local PlayerData = require(script.Parent.Parent.Util.PlayerData)
 local InventoryService = require(script.Parent.InventoryService)
@@ -79,9 +80,41 @@ local function bindNote(inst: Instance)
 	end)
 end
 
+-- Optional evidence (expedition ID tags): read like a note, and counted.
+local function bindEvidence(inst: Instance)
+	if not inst:IsA("BasePart") then
+		return
+	end
+	local part = inst
+	local prompt = part:FindFirstChildOfClass("ProximityPrompt")
+	if not prompt then
+		return
+	end
+	prompt.Triggered:Connect(function(player)
+		local noteId = part:GetAttribute("NoteId")
+		local data = PlayerData.Get(player)
+		if not data or type(noteId) ~= "string" or not table.find(Story.Evidence, noteId) then
+			return
+		end
+		if not closeEnough(player, part) then
+			return
+		end
+		Remotes.ShowNote:FireClient(player, noteId)
+		if not data.Evidence[noteId] then
+			data.Evidence[noteId] = true
+			local found = 0
+			for _ in data.Evidence do
+				found += 1
+			end
+			StoryService.Toast(player, string.format("Evidence found: %d / %d", found, #Story.Evidence), "good")
+		end
+	end)
+end
+
 function InteractionService.Init()
 	Zones.BindTag("Pickup", bindPickup)
 	Zones.BindTag("Note", bindNote)
+	Zones.BindTag("Evidence", bindEvidence)
 end
 
 return InteractionService

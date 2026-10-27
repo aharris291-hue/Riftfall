@@ -259,6 +259,24 @@ local function makeCharacterSpot(
 	spot:SetAttribute("Phase", phase)
 end
 
+-- An expedition ID tag lying on the ground: optional evidence with a small
+-- glint so a careful explorer can spot it.
+local function makeEvidence(parent: Instance, noteId: string, position: Vector3)
+	local tag = makePart(parent, {
+		Name = noteId,
+		Size = Vector3.new(0.5, 0.06, 0.8),
+		CFrame = CFrame.new(position) * CFrame.Angles(0, math.rad(35), 0),
+		Material = Enum.Material.Metal,
+		Color = Color3.fromRGB(190, 196, 204),
+		Reflectance = 0.3,
+		CanCollide = false,
+	})
+	tag:SetAttribute("NoteId", noteId)
+	addLight(tag, Color3.fromRGB(220, 230, 255), 5, 0.7)
+	makePrompt(tag, "Examine", "ID tag")
+	CollectionService:AddTag(tag, "Evidence")
+end
+
 local function makeStoryTrigger(parent: Instance, triggerId: string, cframe: CFrame, size: Vector3)
 	local zone = makeZone(parent, "Trigger_" .. triggerId, cframe, size, "StoryTrigger")
 	zone:SetAttribute("TriggerId", triggerId)
@@ -539,6 +557,10 @@ local function buildTrail(level: Folder)
 	})
 	makeNote(trail, "Scrawl", "Scratched message", treePos + Vector3.new(4, 2.1, 3))
 	makeStoryTrigger(trail, "ClawMarks", CFrame.new(trailCenterX(z), 4, z), Vector3.new(24, 8, 14))
+	-- First sighting: the creature crosses the trail ahead (StalkerService).
+	makeStoryTrigger(trail, "Sighting", CFrame.new(trailCenterX(135), 4, 135), Vector3.new(30, 8, 10))
+	-- Optional evidence a little off the path.
+	makeEvidence(trail, "TagOkafor", Vector3.new(trailCenterX(88) + 13, 0.3, 88))
 end
 
 local function buildCamp(level: Folder, rng: Random)
@@ -617,6 +639,10 @@ local function buildCamp(level: Folder, rng: Random)
 	makeNote(camp, "Journal", "Rourke's journal", tableTop.Position + Vector3.new(-1, 0.25, 0))
 	makePickup(camp, "Bandage", "Bandage", Vector3.new(12, 1, 184), Color3.fromRGB(230, 225, 210))
 	makePickup(camp, "Battery", "Battery", Vector3.new(-14, 1, 186), Color3.fromRGB(120, 200, 255))
+	makePickup(camp, "Flare", "Flare", Vector3.new(9, 1, 207), Color3.fromRGB(255, 70, 50))
+	-- Inside the torn tent.
+	makeEvidence(camp, "TagHale", Vector3.new(12, 0.3, 195))
+	makeStoryTrigger(camp, "Gate", CFrame.new(4, 4, 207), Vector3.new(40, 8, 6))
 	makeCheckpoint(camp, "Camp", 1, Vector3.new(6, 0, 174))
 	makeCharacterSpot(camp, "Kade", Vector3.new(-3, 0, 181), Vector3.new(0, 0, 168), "Explore")
 	makeStoryTrigger(camp, "Camp", CFrame.new(0, 4, 172), Vector3.new(40, 8, 10))
@@ -632,6 +658,65 @@ local function buildCamp(level: Folder, rng: Random)
 			Color = Color3.fromRGB(80, 70, 60),
 		})
 	end
+end
+
+-- The rusted iron gate in the ruins arch, chained shut. Each door is a Model
+-- whose pivot is its hinge; GateService swings them by SwingAngle degrees.
+local function buildGate(parent: Instance, leftHinge: Vector3, rightHinge: Vector3)
+	local gate = Instance.new("Model")
+	gate.Name = "RuinsGate"
+	local iron = Color3.fromRGB(70, 52, 42)
+	local width = (rightHinge - leftHinge).Magnitude / 2
+	local height = 9
+	for _, side in { { leftHinge, 1, -100 }, { rightHinge, -1, 100 } } do
+		local hinge: Vector3, dir: number, angle: number = side[1], side[2], side[3]
+		local door = Instance.new("Model")
+		door.Name = if dir == 1 then "DoorLeft" else "DoorRight"
+		local function bar(size: Vector3, offset: Vector3)
+			makePart(door, {
+				Name = "Bar",
+				Size = size,
+				CFrame = CFrame.new(hinge + offset),
+				Material = Enum.Material.CorrodedMetal,
+				Color = iron,
+			})
+		end
+		for _, y in { 0.6, height / 2, height - 0.4 } do
+			bar(Vector3.new(width, 0.4, 0.3), Vector3.new(dir * width / 2, y, 0))
+		end
+		local count = math.floor(width / 0.9)
+		for i = 0, count do
+			local x = dir * (0.2 + i * (width - 0.4) / count)
+			bar(Vector3.new(0.2, height, 0.2), Vector3.new(x, height / 2, 0))
+		end
+		door.WorldPivot = CFrame.new(hinge)
+		door:SetAttribute("SwingAngle", angle)
+		door.Parent = gate
+	end
+	-- Chain and padlock where the doors meet.
+	local middle = (leftHinge + rightHinge) / 2
+	local chain = makePart(gate, {
+		Name = "GateChain",
+		Size = Vector3.new(2.2, 1.6, 0.5),
+		CFrame = CFrame.new(middle + Vector3.new(0, 4.5, -0.35)),
+		Material = Enum.Material.DiamondPlate,
+		Color = Color3.fromRGB(150, 150, 155),
+		CanCollide = false,
+	})
+	makePrompt(chain, "Cut chain", "Chained gate", 1.2)
+	CollectionService:AddTag(chain, "ChainedGate")
+	local padlock = makePart(gate, {
+		Name = "Padlock",
+		Size = Vector3.new(0.6, 0.8, 0.3),
+		CFrame = CFrame.new(middle + Vector3.new(0, 3.5, -0.6)),
+		Material = Enum.Material.Metal,
+		Color = Color3.fromRGB(180, 150, 70),
+		CanCollide = false,
+	})
+	padlock:SetAttribute("ChainPiece", true)
+	-- A lamp hung on the gate so it is easy to find at night (fairness).
+	addLight(chain, Color3.fromRGB(255, 200, 140), 12, 0.8)
+	gate.Parent = parent
 end
 
 local function buildRuins(level: Folder, rng: Random)
@@ -772,7 +857,39 @@ local function buildRuins(level: Folder, rng: Random)
 		marker:SetAttribute("Order", i)
 	end
 	makeZone(ruins, "StalkerSpawn", CFrame.new(0, 4, 292), Vector3.new(1, 1, 1), "StalkerSpawn")
-	makeStoryTrigger(ruins, "Ruins", CFrame.new(0, 4, 214), Vector3.new(100, 8, 8))
+	makeStoryTrigger(ruins, "Ruins", CFrame.new(0, 4, 224), Vector3.new(100, 8, 8))
+	makePickup(ruins, "Flare", "Flare", Vector3.new(-40, 1, 272), Color3.fromRGB(255, 70, 50))
+	-- Kade's brother's tag, under the western broken arch (a risky detour).
+	makeEvidence(ruins, "TagDaniel", Vector3.new(-46, 0.45, 262))
+
+	-- Crumbling perimeter wall: the ruins can only be entered through the
+	-- chained gate in the great arch (GateService).
+	local wallZ = 214
+	for _, span in { { -65, -8.4 }, { 16.4, 65 } } do
+		local x = span[1]
+		while x < span[2] - 0.1 do
+			local w = math.min(rng:NextNumber(6, 10), span[2] - x)
+			local h = rng:NextNumber(5, 8)
+			local segment = makePart(ruins, {
+				Name = "RuinWall",
+				Size = Vector3.new(w, h, 2.4),
+				CFrame = CFrame.new(x + w / 2, h / 2, wallZ),
+				Material = Enum.Material.Slate,
+				Color = stone,
+			})
+			SceneryKit.MossCap(ruins, segment)
+			x += w
+		end
+		-- Invisible, taller collider so the wall can't be jumped.
+		makePart(ruins, {
+			Name = "RuinWallBlocker",
+			Size = Vector3.new(span[2] - span[1], 30, 2.4),
+			CFrame = CFrame.new((span[1] + span[2]) / 2, 15, wallZ),
+			Transparency = 1,
+			CastShadow = false,
+		})
+	end
+	buildGate(ruins, Vector3.new(-5, 0.4, wallZ), Vector3.new(13, 0.4, wallZ))
 end
 
 local function buildTemple(level: Folder)
@@ -967,6 +1084,7 @@ local function buildTemple(level: Folder)
 	)
 	makeNote(temple, "Recording", "Torn page", altar.Position + Vector3.new(-1.2, 1.6, 0))
 	makePickup(temple, "Battery", "Battery", Vector3.new(20, 1, 318), Color3.fromRGB(120, 200, 255))
+	makeEvidence(temple, "TagReyes", Vector3.new(21, 0.45, 344))
 
 	makeStoryTrigger(temple, "Temple", CFrame.new(0, 4, 308), Vector3.new(46, 8, 8))
 	makeCharacterSpot(temple, "Lira", Vector3.new(-14, 0.4, 322), Vector3.new(0, 0.4, 308), "Explore")

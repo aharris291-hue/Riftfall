@@ -39,6 +39,18 @@ cloud development environment. Treat everything as untested until it passes
 - Expedition outfits for players (four role variants) instead of Roblox avatars
 - Flashlight with a visible beam aimed by the camera; per-player brightness option
 
+### Chapter 1 expansion (Milestone 4, part 1)
+
+- First sighting: the Rift Stalker crosses the trail far ahead, flickers and
+  vanishes (it cannot hurt you here), with Serra's reaction
+- Locked route: the ruins are walled off behind a chained metal gate; Kade
+  at the camp gives bolt cutters (a key item he re-gives if needed) and a flare
+- Throwable flares (use from the inventory): land ahead of you, burn red for
+  14 s and make a noise the creature hears from 70 studs away, pulling it
+  away from you
+- Four hidden expedition ID tags (optional evidence); the results screen
+  counts them, and returning Daniel's tag adds an extra ending scene with Kade
+
 ## Partially implemented
 
 - **Multiplayer**: server-authoritative and designed to be co-op-safe, but no

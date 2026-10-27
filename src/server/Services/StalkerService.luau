@@ -52,6 +52,11 @@ local searchPoint: Vector3? = nil
 local lastAttackTime = 0
 local attackStarted = 0
 
+-- Loud noises from the world (distraction flares). Each one can be heard
+-- within its radius until it expires.
+type Noise = { Position: Vector3, Radius: number, Expires: number }
+local noises: { Noise } = {}
+
 local patrolPoints: { Vector3 } = {}
 local patrolIndex = 1
 
@@ -433,6 +438,20 @@ local function sense(): (Player?, BasePart?, Vector3?)
 			heardPosition, heardDistance = playerRoot.Position, distance
 		end
 	end
+	local now = os.clock()
+	for i = #noises, 1, -1 do
+		local noise = noises[i]
+		if now > noise.Expires then
+			table.remove(noises, i)
+		else
+			local distance = (noise.Position - root.Position).Magnitude
+			-- A flare is louder than footsteps: it wins unless a player is
+			-- much closer.
+			if distance <= noise.Radius and distance * 0.5 < heardDistance then
+				heardPosition, heardDistance = noise.Position, distance * 0.5
+			end
+		end
+	end
 	return seenPlayer, seenRoot, heardPosition
 end
 
@@ -693,6 +712,7 @@ local function loadPatrolPoints()
 end
 
 function StalkerService.Despawn()
+	table.clear(noises)
 	if model then
 		model:Destroy()
 	end
@@ -739,6 +759,66 @@ function StalkerService.StartHunt(delaySeconds: number)
 	huntReleaseTime = os.clock() + delaySeconds
 	state = "Patrol"
 	setState("Idle")
+end
+
+-- A loud sound somewhere in the world (for example a thrown flare). While it
+-- lasts, the creature hears it from within `radius` and goes to investigate.
+function StalkerService.ReportNoise(position: Vector3, radius: number, duration: number)
+	table.insert(noises, { Position = position, Radius = radius, Expires = os.clock() + duration })
+end
+
+-- The first sighting: a harmless copy of the creature walks across the trail
+-- far ahead of the player, flickers, and vanishes. It is the creature's
+-- introduction ("through clues before a full confrontation").
+function StalkerService.PlaySighting(from: Vector3, to: Vector3, seconds: number)
+	local savedEyes = table.clone(eyes) -- buildModel refills the eye list.
+	local m = buildModel(from)
+	table.clear(eyes)
+	for _, eye in savedEyes do
+		table.insert(eyes, eye)
+	end
+	m.Name = MODEL_NAME .. "Sighting" -- Not the real enemy: no danger meter.
+	local hum = m:FindFirstChildOfClass("Humanoid")
+	if hum then
+		hum:Destroy()
+	end
+	for _, part in m:GetDescendants() do
+		if part:IsA("BasePart") then
+			part.Anchored = true
+			part.CanCollide = false
+			part.CanQuery = false
+		end
+	end
+	local facing = CFrame.lookAt(from, Vector3.new(to.X, from.Y, to.Z))
+	m:PivotTo(facing)
+	m.Parent = workspace
+	local steps = math.max(1, math.floor(seconds / 0.05))
+	for i = 1, steps do
+		if not m.Parent then
+			return
+		end
+		local alpha = i / steps
+		-- A slight bob so it reads as walking, not sliding.
+		local bob = math.abs(math.sin(alpha * math.pi * 8)) * 0.4
+		m:PivotTo(facing.Rotation + from:Lerp(to, alpha) + Vector3.new(0, bob, 0))
+		task.wait(0.05)
+	end
+	-- Flicker out of this dimension.
+	for _ = 1, 3 do
+		for _, part in m:GetDescendants() do
+			if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+				part.Transparency = 0.8
+			end
+		end
+		task.wait(0.1)
+		for _, part in m:GetDescendants() do
+			if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+				part.Transparency = 0
+			end
+		end
+		task.wait(0.08)
+	end
+	m:Destroy()
 end
 
 function StalkerService.GetMode(): string

@@ -26,6 +26,8 @@ local PuzzleService = require(Services.PuzzleService)
 local StalkerService = require(Services.StalkerService)
 local EscapeService = require(Services.EscapeService)
 local GameService = require(Services.GameService)
+local GateService = require(Services.GateService)
+local DistractionService = require(Services.DistractionService)
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 
@@ -46,6 +48,19 @@ end
 CheckpointService.OnPlayerSpawned(function(player)
 	InventoryService.Sync(player)
 end)
+InventoryService.ThrowItem = function(itemId, root)
+	if itemId == "Flare" then
+		DistractionService.Throw(root)
+	end
+end
+CharacterService.OnTalk = GateService.OnTalk
+-- The creature's first appearance: it crosses the trail far ahead, then
+-- vanishes. Players meet it properly in the ruins.
+StoryService.OnTrigger("Sighting", function()
+	task.spawn(StalkerService.PlaySighting, Vector3.new(34, 4, 156), Vector3.new(-26, 4, 150), 3.5)
+	task.wait(1.5)
+	StoryService.PlayDialogue("Sighting")
+end)
 
 -- 3. Services
 PlayerData.Init()
@@ -58,6 +73,7 @@ CheckpointService.Init()
 PuzzleService.Init()
 StalkerService.Init()
 EscapeService.Init()
+GateService.Init()
 GameService.Init()
 
 StalkerService.SpawnPatrol()

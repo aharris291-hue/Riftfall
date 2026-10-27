@@ -18,10 +18,12 @@ local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local StoryService = {}
 
 -- Objectives only ever move forward, in this order.
-local OBJECTIVE_ORDER = { "Start", "Camp", "Ruins", "Puzzle", "Escape", "Bridge", "Done" }
+local OBJECTIVE_ORDER = { "Start", "Camp", "Gate", "Ruins", "Puzzle", "Escape", "Bridge", "Done" }
 
 local currentObjectiveIndex = 0
 local firedTriggers: { [string]: boolean } = {}
+-- Extra handlers other services register for a trigger (see OnTrigger).
+local triggerHandlers: { [string]: { () -> () } } = {}
 
 -- Phase gates: some triggers only make sense during a particular phase.
 local triggerRequiresPhase: { [string]: string } = {
@@ -80,6 +82,15 @@ local function onTrigger(triggerId: string)
 		StoryService.SetObjective("Bridge")
 		StoryService.PlayDialogue("Bridge")
 	end
+	for _, handler in triggerHandlers[triggerId] or {} do
+		task.spawn(handler)
+	end
+end
+
+-- Lets another service react when a story trigger zone fires (once per run).
+function StoryService.OnTrigger(triggerId: string, handler: () -> ())
+	triggerHandlers[triggerId] = triggerHandlers[triggerId] or {}
+	table.insert(triggerHandlers[triggerId], handler)
 end
 
 -- Resets story progress for a fresh run (Play Again).

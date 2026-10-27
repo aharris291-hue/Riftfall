@@ -143,3 +143,19 @@ attribute shows what it is doing.
 | I7 | Watch the Stalker walk on grass and through the arches | It still patrols and chases normally (terrain does not block its path) |
 | I8 | Play Again at the end | The level rebuilds with no duplicate cliffs or floating trees |
 | I9 | Add a model named `JungleTree` to `ServerStorage > RiftfallAssets` and press Play | Every tree is now that model |
+
+## J. Chapter 1 expansion (sighting, gate, flares, evidence)
+
+| # | Do this | Expected |
+|---|---|---|
+| J1 | Walk the trail past the claw marks | About two thirds of the way to camp, the creature crosses the trail far ahead, flickers and disappears. Serra reacts. It does not attack |
+| J2 | Reach the edge of the ruins without talking to Kade | A wall and a chained metal gate block the way; walking into the gate area shows the new objective. **Cut chain** says you need bolt cutters |
+| J3 | Try to climb or jump over the ruin wall | You can't get over it |
+| J4 | Talk to Kade at the camp | He hands you **Bolt Cutters** (and a **Flare** if you have room). Talking again does not give a second pair while you still have one |
+| J5 | Hold **E** on the chain | The chain and padlock disappear, both doors swing open, everyone sees "The gate is open". The bolt cutters leave your inventory |
+| J6 | Pick up the flare at the camp (and the one in the ruins) | Shows in your inventory as **Flare**, up to 2 per slot |
+| J7 | In the ruins, while the creature patrols, press the flare's number key | A red burning flare lands about 18 studs ahead. The creature walks over to investigate it. The flare burns out after about 14 seconds |
+| J8 | Find the four ID tags: trail (beside the path), camp (torn tent), ruins (under the broken arch), temple (by the tiers) | Each one opens a note and shows "Evidence found: x / 4" the first time |
+| J9 | Finish the level with Daniel Kade's tag found | Results show "Expedition tags found: x / 4 (Daniel's tag returned)" and Kade has two extra lines |
+| J10 | Play Again | The gate is chained and closed again, flares and tags are back, the sighting plays again |
+| J11 | Two players: one cuts the chain | The gate opens for both; the second player does not need cutters |

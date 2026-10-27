@@ -56,13 +56,14 @@ The demo contains all of these:
 | Section | What happens | Systems exercised |
 |---|---|---|
 | Crash site | Intro radio call, first battery, warning sign | Dialogue, pickups, flashlight |
-| Jungle trail | Claw marks on a tree, survivor's scratched warning | Environmental storytelling, notes |
-| Abandoned camp | **Checkpoint 1**, Rourke's journal (puzzle clue), bandage, battery | Checkpoints, notes, inventory |
+| Jungle trail | Claw marks on a tree, survivor's scratched warning, **first sighting** of the Rift Stalker crossing far ahead | Environmental storytelling, notes, scripted reveal |
+| Abandoned camp | **Checkpoint 1**, Rourke's journal (puzzle clue), bandage, battery, a flare. Kade gives bolt cutters | Checkpoints, notes, inventory, NPC item hand-off |
+| Chained gate | The ruins are walled off; cut the chain with the bolt cutters and the gate swings open | Locked route, key items |
 | Ruins courtyard | The Rift Stalker patrols; a dormant Corrupted Soldier. Tall grass, pillars and walls for stealth | Enemy AI, crouch, hiding, sprint noise |
 | Temple interior | **Checkpoint 2**, mural, three stone dials, optional Rift Shard | Puzzle, optional evidence |
 | Collapse tunnel | Door opens, mountain shakes, telegraphed falling rocks, the Rift Stalker is released behind you | Escape set-piece, damage, fair warnings |
 | Cliff and bridge | Climb the ladder, cross the bridge as planks fall behind you | Climbing (truss), cinematic beat |
-| Rescue flare | Results screen (time, deaths, notes, shard), Play Again | End objective, replay |
+| Rescue flare | Results screen (time, deaths, notes, expedition tags, shard), extra Kade scene if Daniel's tag was found, Play Again | End objective, replay |
 
 **Puzzle.** The door is opened by setting three dials, left to right, to
 EYE, MOON, SUN. The mural shows `EYE ? SUN`; Rourke's journal says "between
@@ -91,7 +92,7 @@ master prompt's suggested service layout:
 | 1 | Design and technical plan | This document |
 | 2 | Playable vertical slice | **This demo** (code complete, needs Studio play-testing) |
 | 3 | Stabilisation: test in Studio, fix bugs, exploits, UI, performance | Next: needs Adam's test results |
-| 4 | Expand Chapter 1: more jungle, second enemy type (Crawler), real models, authored audio | Planned |
+| 4 | Expand Chapter 1: more jungle, second enemy type (Crawler), real models, authored audio | **In progress**: first sighting, chained gate, flares, 4 expedition tags done |
 | 5 | Saving (DataStoreService) and co-op hardening | Planned |
 | 6 | Polish and release readiness | Planned |
 
