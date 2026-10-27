@@ -11,6 +11,32 @@ local game = roblox.Instance.new("DataModel")
 local workspace = game:GetService("Workspace")
 local lighting = game:GetService("Lighting")
 
+-- Optional 3rd argument: a saved place whose ServerStorage.RiftfallAssets
+-- (real models added in Studio) is copied in, to test the library swap.
+if process.args[3] then
+	local saved = roblox.deserializePlace(fs.readFile(process.args[3]))
+	local assets = saved:GetService("ServerStorage"):FindFirstChild("RiftfallAssets")
+	assert(assets, "saved place has no RiftfallAssets")
+	assets.Parent = game:GetService("ServerStorage")
+	-- Lune lacks GetBoundingBox: approximate it from the parts' boxes.
+	roblox.implementMethod("Model", "GetBoundingBox", function(model)
+		local mn, mx
+		for _, d in model:GetDescendants() do
+			if d:IsA("BasePart") then
+				local p, h = d.CFrame.Position, d.Size / 2
+				mn = if mn then mn:Min(p - h) else p - h
+				mx = if mx then mx:Max(p + h) else p + h
+			end
+		end
+		return roblox.CFrame.new((mn + mx) / 2), mx - mn
+	end)
+	-- Placement is not checked here.
+	roblox.implementMethod("Model", "PivotTo", function() end)
+	roblox.implementMethod("Model", "GetPivot", function()
+		return roblox.CFrame.new()
+	end)
+end
+
 local tagCounts = {}
 local CollectionService = {
 	AddTag = function(_, inst, tag)
@@ -118,6 +144,17 @@ for tag, n in tagCounts do
 end
 table.sort(names)
 print("tags", table.concat(names, " "))
+local fromLibrary = {}
+for _, d in level:GetDescendants() do
+	local slot = d:IsA("Model") and d.Name:match("^(%a+)_%d+$")
+	if slot then
+		fromLibrary[slot] = (fromLibrary[slot] or 0) + 1
+		assert(not d:FindFirstChildWhichIsA("LuaSourceContainer", true), "script left in " .. d.Name)
+	end
+end
+for slot, n in fromLibrary do
+	print("library", slot, n)
+end
 
 -- Rebuild must replace, not duplicate.
 LevelBuilder.Build()

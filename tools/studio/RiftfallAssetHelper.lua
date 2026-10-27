@@ -45,18 +45,27 @@ local function asModel(selected: Instance): Model?
 	if selected:IsA("Model") then
 		return selected
 	end
-	if selected:IsA("BasePart") or selected:IsA("Folder") then
+	if selected:IsA("BasePart") then
 		local model = Instance.new("Model")
 		model.Name = selected.Name
 		model.Parent = selected.Parent
-		if selected:IsA("Folder") then
-			for _, child in selected:GetChildren() do
+		selected.Parent = model
+		return model
+	end
+	-- Folders, Tools (like a hand-held torch) and Accessories: move their
+	-- contents into a Model.
+	if selected:FindFirstChildWhichIsA("BasePart", true) then
+		local model = Instance.new("Model")
+		model.Name = selected.Name
+		model.Parent = selected.Parent
+		for _, child in selected:GetChildren() do
+			if child:IsA("Camera") then
+				child:Destroy()
+			else
 				child.Parent = model
 			end
-			selected:Destroy()
-		else
-			selected.Parent = model
 		end
+		selected:Destroy()
 		return model
 	end
 	return nil

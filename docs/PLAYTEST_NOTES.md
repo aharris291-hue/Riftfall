@@ -2,6 +2,23 @@
 
 Feedback from play sessions, and what was done about each point. Newest first.
 
+## Round 4 — Adam, 2026-10-27: first real models
+
+Adam added Toolbox models to all nine scenery slots and sent his saved place.
+Findings and fixes:
+
+- The torch was a hand-held **Tool**, which the game skipped. Library entries
+  can now be Tools, Accessories or single parts (wrapped in a Model); the
+  helper plugin converts them too.
+- Library 4x4s had no lights, so they now get headlights automatically.
+- Scripts inside library models are deleted when the game copies them (a
+  second safety net after the helper plugin).
+- Leftovers in Workspace (two ferns, a "Valve" part and an unnamed model far
+  off-map) were dropped from the merged place.
+- Merged place = latest code + his `RiftfallAssets` folder, delivered as
+  `Riftfall-with-models.rbxlx`. Offline check: 223 trees, 128 ferns, 15
+  torches, arches, tents, crates and the helicopter all come from his models.
+
 ## Round 3 — Adam, 2026-10-26: Chapter 1 environment concept
 
 **Hotfix:** Adam reported falling forever on load. Cause: the terrain code

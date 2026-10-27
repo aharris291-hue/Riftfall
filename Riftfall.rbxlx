@@ -5554,6 +5554,36 @@ end
 
 -- Places a copy of a real model from ServerStorage.RiftfallAssets, if the
 -- slot has one. Returns the copy, or nil to build the placeholder instead.
+-- Makes a placeable Model from a library entry. Most entries are Models;
+-- Toolbox items can also be Tools (a torch you hold), Accessories or single
+-- parts, which are wrapped in a Model standing on its bottom centre.
+local function toModel(entry: Instance): Model?
+	if entry:IsA("Model") then
+		return entry:Clone()
+	end
+	if not (entry:IsA("BasePart") or entry:FindFirstChildWhichIsA("BasePart", true)) then
+		return nil
+	end
+	local model = Instance.new("Model")
+	model.Name = entry.Name
+	local copy = entry:Clone()
+	if copy:IsA("BasePart") then
+		copy.Parent = model
+	else
+		for _, child in copy:GetChildren() do
+			if not child:IsA("Camera") then
+				child.Parent = model
+			end
+		end
+	end
+	local box, size = model:GetBoundingBox()
+	model.WorldPivot = box * CFrame.new(0, -size.Y / 2, 0)
+	return model
+end
+
+-- Places a copy of a real model from ServerStorage.RiftfallAssets, if the
+-- slot has one. Returns the copy, or nil to build the placeholder instead.
+-- Scripts inside library models never run: they are removed from the copy.
 local function fromLibrary(slot: string, parent: Instance, at: CFrame, rng: Random?): Model?
 	local library = ServerStorage:FindFirstChild("RiftfallAssets")
 	local entry = library and library:FindFirstChild(slot)
@@ -5561,13 +5591,15 @@ local function fromLibrary(slot: string, parent: Instance, at: CFrame, rng: Rand
 		local variants = entry:GetChildren()
 		entry = if #variants > 0 then variants[if rng then rng:NextInteger(1, #variants) else 1] else nil
 	end
-	if not entry or not entry:IsA("Model") then
+	local copy = entry and toModel(entry)
+	if not copy then
 		return nil
 	end
-	local copy = entry:Clone()
 	for _, d in copy:GetDescendants() do
 		if d:IsA("BasePart") then
 			d.Anchored = true
+		elseif d:IsA("LuaSourceContainer") then
+			d:Destroy()
 		end
 	end
 	copy:PivotTo(if rng then at * CFrame.Angles(0, rng:NextNumber(-0.15, 0.15), 0) else at)
@@ -5964,7 +5996,27 @@ end
 -- A rusted, overgrown expedition 4x4. Headlights (still on) shine along
 -- the LookVector and light the ground in front of it.
 function SceneryKit.Truck(parent: Instance, at: CFrame, rng: Random)
-	if fromLibrary(SceneryKit.Slots.Truck, parent, at, nil) then
+	local real = fromLibrary(SceneryKit.Slots.Truck, parent, at, nil)
+	if real then
+		-- Concept art: the abandoned 4x4s still have their headlights on.
+		if not real:FindFirstChildWhichIsA("Light", true) then
+			local box, size = real:GetBoundingBox()
+			for _, side in { -1, 1 } do
+				local lamp = decor(real, {
+					Name = "Headlight",
+					Size = Vector3.new(0.6, 0.6, 0.2),
+					CFrame = box * CFrame.new(side * size.X * 0.3, -size.Y * 0.1, -size.Z / 2 - 0.15),
+					Transparency = 1,
+				})
+				local beam = Instance.new("SpotLight")
+				beam.Face = Enum.NormalId.Front
+				beam.Angle = 55
+				beam.Range = 42
+				beam.Brightness = 3
+				beam.Color = C.Headlight
+				beam.Parent = lamp
+			end
+		end
 		return
 	end
 	local model = Instance.new("Model")
