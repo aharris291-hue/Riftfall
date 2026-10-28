@@ -49,6 +49,9 @@
         },
         "SettingsLoaded": {
           "$className": "RemoteEvent"
+        },
+        "ContinueChapter": {
+          "$className": "RemoteEvent"
         }
       }
     },

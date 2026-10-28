@@ -385,9 +385,15 @@ local function moveToward(goal: Vector3): boolean
 
 	if needsPath and now - lastPathTime >= C.RepathInterval then
 		lastPathTime = now
+		local from = root.Position
 		local ok = pcall(function()
-			path:ComputeAsync(root.Position, goal)
+			path:ComputeAsync(from, goal)
 		end)
+		-- Computing a path can take a moment; the creature may have been
+		-- removed (end of chapter) in the meantime.
+		if not root or not humanoid then
+			return false
+		end
 		if ok and path.Status == Enum.PathStatus.Success then
 			waypoints = path:GetWaypoints()
 			waypointIndex = math.min(2, #waypoints)
@@ -810,8 +816,17 @@ end
 -- Public API
 ------------------------------------------------------------------------------
 
+-- Patrol markers belong to a zone (attribute "Zone"; none means Chapter 1),
+-- so the creature only wanders the chapter it was spawned in.
+local currentZone = "Chapter1"
+
 local function loadPatrolPoints()
-	local markers = CollectionService:GetTagged("StalkerPatrol")
+	local markers = {}
+	for _, marker in CollectionService:GetTagged("StalkerPatrol") do
+		if (marker:GetAttribute("Zone") or "Chapter1") == currentZone then
+			table.insert(markers, marker)
+		end
+	end
 	table.sort(markers, function(a, b)
 		return (a:GetAttribute("Order") or 0) < (b:GetAttribute("Order") or 0)
 	end)
@@ -853,11 +868,16 @@ local function spawnAt(position: Vector3)
 	lastProgressTime = os.clock()
 end
 
--- Spawns the creature on its patrol in the ruins (start of a run).
-function StalkerService.SpawnPatrol()
+-- Spawns the creature on its patrol: in the ruins (start of a run), or in
+-- another zone (e.g. "Chapter2") at a given position.
+function StalkerService.SpawnPatrol(zone: string?, position: Vector3?)
+	currentZone = zone or "Chapter1"
 	loadPatrolPoints()
+	patrolGoal = nil
+	lingerUntil = 0
+	table.clear(recentPoints)
 	local marker = Zones.FirstTagged("StalkerSpawn")
-	spawnAt(if marker then marker.Position else Vector3.new(0, 4, 292))
+	spawnAt(position or (if marker then marker.Position else Vector3.new(0, 4, 292)))
 	mode = "Explore"
 	state = "Idle"
 	setState("Patrol")

@@ -59,6 +59,15 @@ local Items: { [string]: ItemDef } = {
 		KeyItem = true,
 		UseTime = 0,
 	},
+	Fuse = {
+		Id = "Fuse",
+		DisplayName = "Fuse",
+		Description = "A heavy industrial fuse. The generator panel needs two.",
+		MaxStack = 2,
+		Color = Color3.fromRGB(255, 200, 60),
+		KeyItem = true,
+		UseTime = 0,
+	},
 	RiftShard = {
 		Id = "RiftShard",
 		DisplayName = "Rift Shard",

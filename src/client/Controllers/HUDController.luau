@@ -109,6 +109,10 @@ local noteBody: TextLabel
 local deathFrame: Frame
 local endFrame: Frame
 local endStats: TextLabel
+local endTitle: TextLabel
+local endHeadline: TextLabel
+local endNext: TextLabel
+local continueButton: TextButton
 
 local dialogueQueue: { any } = {}
 local skipCurrentLine = false
@@ -842,7 +846,7 @@ local function buildEndScreen()
 		ZIndex = 30,
 		Parent = gui,
 	})
-	label({
+	endTitle = label({
 		Text = "CHAPTER 1: THE FORGOTTEN EXPEDITION",
 		TextSize = 16,
 		Font = FONT_BOLD,
@@ -854,7 +858,7 @@ local function buildEndScreen()
 		ZIndex = 31,
 		Parent = endFrame,
 	})
-	label({
+	endHeadline = label({
 		Text = "DEMO COMPLETE",
 		TextSize = 42,
 		Font = FONT_BOLD,
@@ -877,7 +881,7 @@ local function buildEndScreen()
 		ZIndex = 31,
 		Parent = endFrame,
 	})
-	label({
+	endNext = label({
 		Text = "Riftfall: The Last Ascent continues in Chapter 2 - Blackstone Research Facility.",
 		TextSize = 14,
 		TextColor3 = COLORS.Muted,
@@ -888,9 +892,28 @@ local function buildEndScreen()
 		ZIndex = 31,
 		Parent = endFrame,
 	})
+	continueButton = new("TextButton", {
+		Name = "ContinueButton",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(0.5, -8, 0.2, 290),
+		Size = UDim2.fromOffset(220, 46),
+		BackgroundColor3 = COLORS.Good,
+		Font = FONT_BOLD,
+		TextSize = 18,
+		TextColor3 = Color3.fromRGB(10, 30, 16),
+		Text = "Continue to Chapter 2",
+		ZIndex = 31,
+		Parent = endFrame,
+	}, { corner(8) })
+	continueButton.Activated:Connect(function()
+		Remotes.ContinueChapter:FireServer()
+		endFrame.Visible = false
+		ClientState.ModalOpen = noteFrame.Visible
+	end)
 	local again = new("TextButton", {
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0.2, 290),
+		Name = "PlayAgainButton",
+		AnchorPoint = Vector2.new(0, 0),
+		Position = UDim2.new(0.5, 8, 0.2, 290),
 		Size = UDim2.fromOffset(200, 46),
 		BackgroundColor3 = COLORS.Accent,
 		Font = FONT_BOLD,
@@ -1022,6 +1045,33 @@ local function showEnd(stats: any)
 	if type(stats) ~= "table" then
 		return
 	end
+	if stats.Chapter == 2 then
+		endTitle.Text = "CHAPTER 2: BLACKSTONE RESEARCH FACILITY"
+		endHeadline.Text = "CHAPTER COMPLETE"
+		endNext.Text = "Riftfall: The Last Ascent continues in Chapter 3 - The Sunken Temple."
+		continueButton.Visible = false
+		-- Only one button now: center it.
+		local again = endFrame:FindFirstChild("PlayAgainButton") :: TextButton
+		again.AnchorPoint = Vector2.new(0.5, 0)
+		again.Position = UDim2.new(0.5, 0, 0.2, 290)
+		endStats.Text = string.format(
+			"Time: %s\nDeaths: %d\nLogs found: %d / %d",
+			formatTime(tonumber(stats.Time) or 0),
+			tonumber(stats.Deaths) or 0,
+			tonumber(stats.NotesRead) or 0,
+			tonumber(stats.NotesTotal) or 0
+		)
+		endFrame.Visible = true
+		ClientState.ModalOpen = true
+		return
+	end
+	endTitle.Text = "CHAPTER 1: THE FORGOTTEN EXPEDITION"
+	endHeadline.Text = "CHAPTER COMPLETE"
+	endNext.Text = "Riftfall: The Last Ascent continues in Chapter 2 - Blackstone Research Facility."
+	continueButton.Visible = true
+	local again = endFrame:FindFirstChild("PlayAgainButton") :: TextButton
+	again.AnchorPoint = Vector2.new(0, 0)
+	again.Position = UDim2.new(0.5, 8, 0.2, 290)
 	endStats.Text = string.format(
 		"Time: %s\nDeaths: %d\nNotes found: %d / %d\nExpedition tags found: %d / %d%s\nRift Shard recovered: %s",
 		formatTime(tonumber(stats.Time) or 0),

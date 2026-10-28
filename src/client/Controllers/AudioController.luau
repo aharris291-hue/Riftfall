@@ -79,7 +79,8 @@ end
 
 -- Inside the temple and tunnel the jungle is muffled (matches Atmosphere).
 local function isIndoors(position: Vector3): boolean
-	return position.Z > 298 and position.Z < 432 and position.Y < 24
+	-- The Chapter 2 facility (Z > 1300) is indoors too.
+	return (position.Z > 298 and position.Z < 432 and position.Y < 24) or position.Z > 1300
 end
 
 local function stalkerInfo(): (string?, number)

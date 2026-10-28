@@ -19,6 +19,12 @@ Story.Objectives = {
 	Escape = "The temple is collapsing. GET OUT!",
 	Bridge = "Climb the cliff and cross the bridge to the flare",
 	Done = "Signal reached. Chapter 1 demo complete.",
+	-- Chapter 2: Blackstone Research Facility
+	C2Start = "Get inside Blackstone. Find out what happened here",
+	C2Power = "The security door has no power. Find the generator room",
+	C2Fuses = "Restore power: put 2 fuses in the panel, set the breakers, pull the lever",
+	C2Escape = "Something got out. Reach the elevator at the end of the corridor",
+	C2Done = "Elevator reached. Chapter 2 complete.",
 }
 
 -- Cast (from the character concept sheet):
@@ -240,6 +246,98 @@ Story.Dialogue = {
 			Duration = 4,
 		},
 	},
+	-- Chapter 2: Blackstone Research Facility
+	C2Intro = {
+		{
+			Speaker = "SERRA (AI)",
+			Text = "The signal came from here. Blackstone Research. Officially, this place does not exist.",
+			Duration = 4.5,
+		},
+		{
+			Speaker = "KADE",
+			Text = "Lira and I will hold the entrance. Get the doors working and find us a way up.",
+			Duration = 4.5,
+		},
+	},
+	C2Lobby = {
+		{
+			Speaker = "SERRA (AI)",
+			Text = "Main power is down. Only emergency lights. The security door won't move without power.",
+			Duration = 4.5,
+		},
+		{
+			Speaker = "SERRA (AI)",
+			Text = "Maintenance is to the west. Storage to the east. Look for fuses.",
+			Duration = 4,
+		},
+	},
+	C2DoorLocked = {
+		{ Speaker = "SERRA (AI)", Text = "No power to the door. We need the generator running.", Duration = 3.5 },
+	},
+	C2Tunnel = {
+		{
+			Speaker = "SERRA (AI)",
+			Text = "Scratches on the pipes. Fresh ones. I am choosing to believe they are from rats.",
+			Duration = 4,
+		},
+	},
+	C2Generator = {
+		{
+			Speaker = "LIRA",
+			Text = "(radio) Jax, that panel needs two fuses. And check the breakers before you pull the lever.",
+			Duration = 4.5,
+		},
+		{
+			Speaker = "LIRA",
+			Text = "(radio) Wrong settings will short something out. Look for an engineer's note.",
+			Duration = 4,
+		},
+	},
+	C2WrongBreakers = {
+		{
+			Speaker = "SERRA (AI)",
+			Text = "The generator coughed and died. Wrong breaker settings. Something in the dark heard that.",
+			Duration = 4.5,
+		},
+	},
+	C2Power = {
+		{ Speaker = "SERRA (AI)", Text = "Power's back! Security door is open.", Duration = 3 },
+		{
+			Speaker = "SERRA (AI)",
+			Text = "Wait. The power surge just opened every door in the building. Including the containment cells.",
+			Duration = 4.5,
+		},
+	},
+	C2Breakout = {
+		{ Speaker = "LIRA", Text = "(radio) Jax, something just tore through Lab 2! Get to the elevator. NOW!", Duration = 4 },
+		{
+			Speaker = "SERRA (AI)",
+			Text = "Lockers in the corridor. Crouch in front of one and it can't see you.",
+			Duration = 4,
+		},
+	},
+	C2Corridor = {
+		{
+			Speaker = "SERRA (AI)",
+			Text = "Elevator at the far end. Hold the call button. It will take a few seconds. Make them count.",
+			Duration = 4.5,
+		},
+	},
+	C2ElevatorNoPower = {
+		{ Speaker = "SERRA (AI)", Text = "The elevator's dead. No power.", Duration = 3 },
+	},
+	C2Done = {
+		{
+			Speaker = "KADE",
+			Text = "(radio) We see the elevator lights. Ride it up, kid. We'll meet you at the top.",
+			Duration = 4.5,
+		},
+		{
+			Speaker = "LIRA",
+			Text = "(radio) Those cells... Blackstone didn't find that creature. They were growing it.",
+			Duration = 4.5,
+		},
+	},
 }
 
 -- Optional evidence: ID tags from the lost Rourke expedition, hidden around
@@ -284,6 +382,23 @@ Story.Notes = {
 	Recording = {
 		Title = "Torn page near the shard",
 		Body = "...the shards hum louder near the crack. Twelve of us came. Four are left.\nThe door was never meant to keep us out.\nIt was meant to keep something IN.\n\n- E.R.",
+	},
+	-- Chapter 2
+	C2SecurityLog = {
+		Title = "Security log - Blackstone lobby",
+		Body = "02:14  Power fluctuation, west wing.\n02:16  Containment Lab 2 reports 'movement in Cell 3'. Told them it's the pumps.\n02:31  Generator tripped. Emergency lights only.\n02:33  Something is in the maintenance tunnel.\n02:34  Sealing the security door. If you're reading this, don't restore the power until you have a way out.",
+	},
+	C2Whiteboard = {
+		Title = "Whiteboard - Engineering",
+		Body = "GENERATOR LOAD TEST\n\nBreaker A: ON\nBreaker B: OFF   (B shorts the corridor! DO NOT RUN)\nBreaker C: ON\n\nSpare fuses: one on the shelf here, one in the maintenance crate.\n- M.",
+	},
+	C2LabLog = {
+		Title = "Research log - Dr. Mira Sato",
+		Body = "Sample R-7 came out of the Rift fracture under the mountain, the same stone the Vael carved.\n\nWhen we feed it current, it grows. When the power drops, it wakes.\n\nDirector Hale says the Rourke expedition 'found the door'. He says we only need to open it wider.",
+	},
+	C2CryoLog = {
+		Title = "Containment report - Lab 2",
+		Body = "Cell 1: empty.\nCell 2: empty.\nCell 3: SUBJECT ACTIVE. Hunts by sound. Ignores light unless it is pointed at it.\n\nRecommendation: never cut main power while Cell 3 is occupied. The lock fails OPEN.",
 	},
 }
 

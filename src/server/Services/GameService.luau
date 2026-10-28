@@ -22,12 +22,15 @@ local GameService = {}
 
 -- Set by Main: called with (player, seconds) when a player finishes the chapter.
 GameService.OnFinished = nil :: ((Player, number) -> ())?
+-- Set by Main: called after Play Again rebuilds the world.
+GameService.OnReset = nil :: (() -> ())?
 
 local function countNotes(): number
 	-- Evidence tags are shown like notes but counted separately.
 	local total = 0
 	for id in Story.Notes do
-		if not table.find(Story.Evidence, id) then
+		-- Chapter 2 notes ("C2...") are counted on the Chapter 2 results.
+		if not table.find(Story.Evidence, id) and string.sub(id, 1, 2) ~= "C2" then
 			total += 1
 		end
 	end
@@ -58,6 +61,7 @@ local function finishRun(player: Player)
 		GameService.OnFinished(player, os.clock() - data.StartTime)
 	end
 	Remotes.RunComplete:FireClient(player, {
+		Chapter = 1,
 		EvidenceFound = evidenceFound,
 		EvidenceTotal = #Story.Evidence,
 		FoundDaniel = data.Evidence.TagDaniel == true,
@@ -87,6 +91,9 @@ local function fullReset()
 	StoryService.Reset()
 	LevelBuilder.Build()
 	PuzzleService.Reset() -- Again, now that the new dials exist.
+	if GameService.OnReset then
+		GameService.OnReset()
+	end
 	StalkerService.SpawnPatrol()
 	for _, player in Players:GetPlayers() do
 		PlayerData.Reset(player)

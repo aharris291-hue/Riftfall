@@ -18,7 +18,21 @@ local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local StoryService = {}
 
 -- Objectives only ever move forward, in this order.
-local OBJECTIVE_ORDER = { "Start", "Camp", "Gate", "Ruins", "Puzzle", "Escape", "Bridge", "Done" }
+local OBJECTIVE_ORDER = {
+	"Start",
+	"Camp",
+	"Gate",
+	"Ruins",
+	"Puzzle",
+	"Escape",
+	"Bridge",
+	"Done",
+	"C2Start",
+	"C2Power",
+	"C2Fuses",
+	"C2Escape",
+	"C2Done",
+}
 
 local currentObjectiveIndex = 0
 local firedTriggers: { [string]: boolean } = {}
