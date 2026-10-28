@@ -25,6 +25,12 @@ Story.Objectives = {
 	C2Fuses = "Restore power: put 2 fuses in the panel, set the breakers, pull the lever",
 	C2Escape = "Something got out. Reach the elevator at the end of the corridor",
 	C2Done = "Elevator reached. Chapter 2 complete.",
+	-- Chapter 3: The Sunken Temple
+	C3Start = "Go deeper into the Sunken Temple",
+	C3Plates = "Open the sanctum: step on the symbol plates in the right order",
+	C3Heart = "Enter the sanctum and find the source of the Rift",
+	C3Escape = "The temple is flooding! Climb the vines to the ledge and get out",
+	C3Done = "You escaped the Sunken Temple. Chapter 3 complete.",
 }
 
 -- Cast (from the character concept sheet):
@@ -338,6 +344,80 @@ Story.Dialogue = {
 			Duration = 4.5,
 		},
 	},
+	-- Chapter 3: The Sunken Temple
+	C3Intro = {
+		{
+			Speaker = "LIRA",
+			Text = "(radio) The elevator shaft goes past the labs, Jax. Down into the old Vael temple.",
+			Duration = 4.5,
+		},
+		{
+			Speaker = "SERRA (AI)",
+			Text = "Blackstone built on top of it. They were digging toward the same thing the Vael buried.",
+			Duration = 4.5,
+		},
+	},
+	C3Entrance = {
+		{ Speaker = "SERRA (AI)", Text = "Water ahead. Mind the stones. I am not waterproof. Well, I am. You are not.", Duration = 4.5 },
+	},
+	C3Gallery = {
+		{
+			Speaker = "LIRA",
+			Text = "(radio) The Vael always hid their keys. Look for a wall that doesn't belong.",
+			Duration = 4,
+		},
+	},
+	C3Hidden = {
+		{
+			Speaker = "LIRA",
+			Text = "(radio) A secret chamber! Read the tablet. Those plates out there need an order.",
+			Duration = 4,
+		},
+	},
+	C3Creature = {
+		{
+			Speaker = "SERRA (AI)",
+			Text = "It followed us down. Every plate you step on will grind. It will hear that.",
+			Duration = 4.5,
+		},
+		{
+			Speaker = "SERRA (AI)",
+			Text = "Hide in the alcoves by the statues if it gets close. Crouch.",
+			Duration = 4,
+		},
+	},
+	C3GateOpen = {
+		{ Speaker = "SERRA (AI)", Text = "The sanctum is open. That energy reading is... the same as the creature's.", Duration = 4.5 },
+	},
+	C3Sanctum = {
+		{
+			Speaker = "LIRA",
+			Text = "(radio) Jax, describe what you see. Slowly. I want to remember every word of this.",
+			Duration = 4.5,
+		},
+	},
+	C3Heart = {
+		{ Speaker = "SERRA (AI)", Text = "It's warm. It's... beating. Jax, this isn't a rock. It's an organ.", Duration = 4.5 },
+	},
+	C3Flood = {
+		{
+			Speaker = "SERRA (AI)",
+			Text = "The seals are breaking! Water is coming in. Climb the vines to the ledge. Go!",
+			Duration = 4,
+		},
+	},
+	C3Done = {
+		{
+			Speaker = "LIRA",
+			Text = "(radio) The Vael didn't worship the Rift. They fed it, to keep it asleep. And we woke it up.",
+			Duration = 5,
+		},
+		{
+			Speaker = "KADE",
+			Text = "(radio) Then we finish this at the top. The mountain path is open. We go up together.",
+			Duration = 4.5,
+		},
+	},
 }
 
 -- Optional evidence: ID tags from the lost Rourke expedition, hidden around
@@ -399,6 +479,23 @@ Story.Notes = {
 	C2CryoLog = {
 		Title = "Containment report - Lab 2",
 		Body = "Cell 1: empty.\nCell 2: empty.\nCell 3: SUBJECT ACTIVE. Hunts by sound. Ignores light unless it is pointed at it.\n\nRecommendation: never cut main power while Cell 3 is occupied. The lock fails OPEN.",
+	},
+	-- Chapter 3
+	C3Mural = {
+		Title = "Vael mural",
+		Body = "Rows of tiny figures kneel before a crack in the sky.\nOut of the crack reaches something with long arms and a crown of crystal.\n\nBelow, the figures carry a glowing stone down into the earth, and seal the door behind them.",
+	},
+	C3Tablet = {
+		Title = "Tablet in the hidden chamber",
+		Body = "The words are worn but readable:\n\nFIRST the EYE that watches.\nTHEN the SERPENT that waits.\nThe MOON that hides.\nLAST the SUN that sleeps.\n\nSomeone has scratched underneath: 'Wrong step = darts. Listen for the click. - E.R.'",
+	},
+	C3Rourke = {
+		Title = "Rourke's last page",
+		Body = "Day 31.\nThe heart is under the temple, exactly as the songs said.\nThe Vael fed it light so it would sleep.\nBlackstone's people want to wake it, to 'study' it.\n\nIf anyone finds this: do not touch the heart. Or if you must, run.\n- Elias Rourke",
+	},
+	C3Vael = {
+		Title = "Inscription on the altar",
+		Body = "WE OPENED THE SKY TO SEE THE STARS.\nSOMETHING SAW US BACK.\nWE GAVE IT OUR LIGHT SO IT WOULD DREAM.\nKEEP IT DREAMING.",
 	},
 }
 

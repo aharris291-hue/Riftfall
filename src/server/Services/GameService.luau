@@ -29,8 +29,8 @@ local function countNotes(): number
 	-- Evidence tags are shown like notes but counted separately.
 	local total = 0
 	for id in Story.Notes do
-		-- Chapter 2 notes ("C2...") are counted on the Chapter 2 results.
-		if not table.find(Story.Evidence, id) and string.sub(id, 1, 2) ~= "C2" then
+		-- Later chapters' notes ("C2...", "C3...") are counted on their own results.
+		if not table.find(Story.Evidence, id) and not string.match(id, "^C%d") then
 			total += 1
 		end
 	end

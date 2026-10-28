@@ -982,6 +982,12 @@ function StalkerService.OnPlayerRespawned(player: Player, position: Vector3)
 	setState("Patrol")
 end
 
+-- Makes the creature ignore a player for a few seconds (e.g. when it first
+-- appears, so nobody is caught before they can react).
+function StalkerService.GiveGrace(player: Player, seconds: number)
+	graceUntil[player] = os.clock() + seconds
+end
+
 function StalkerService.GetMode(): string
 	return mode
 end

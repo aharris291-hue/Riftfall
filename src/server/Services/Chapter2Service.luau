@@ -300,6 +300,10 @@ function Chapter2Service.Enter(player: Player)
 	StoryService.PlayDialogue("C2Intro", player)
 end
 
+function Chapter2Service.HasFinished(player: Player): boolean
+	return finished[player] == true
+end
+
 function Chapter2Service.IsIn(player: Player): boolean
 	return chapterStart[player] ~= nil and not finished[player]
 end
@@ -357,8 +361,8 @@ function Chapter2Service.Init()
 		end
 	end)
 
-	Remotes.ContinueChapter.OnServerEvent:Connect(function(player)
-		if not PlayerData.RateLimit(player, "Continue", 2) then
+	Remotes.ContinueChapter.OnServerEvent:Connect(function(player, nextChapter)
+		if (nextChapter ~= nil and nextChapter ~= 2) or not PlayerData.RateLimit(player, "Continue", 2) then
 			return
 		end
 		local data = PlayerData.Get(player)

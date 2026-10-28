@@ -30,6 +30,7 @@ local GateService = require(Services.GateService)
 local DistractionService = require(Services.DistractionService)
 local SaveService = require(Services.SaveService)
 local Chapter2Service = require(Services.Chapter2Service)
+local Chapter3Service = require(Services.Chapter3Service)
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 
@@ -67,7 +68,11 @@ CharacterService.OnTalk = GateService.OnTalk
 CheckpointService.OnCheckpointReached(SaveService.OnCheckpoint)
 InteractionService.OnEvidenceFound = SaveService.OnEvidence
 GameService.OnFinished = SaveService.OnFinished
-GameService.OnReset = Chapter2Service.Reset
+GameService.OnReset = function()
+	Chapter2Service.Reset()
+	Chapter3Service.Reset()
+end
+Chapter3Service.FinishedPrevious = Chapter2Service.HasFinished
 -- The creature's first appearance: it crosses the trail far ahead, then
 -- vanishes. Players meet it properly in the ruins.
 StoryService.OnTrigger("Sighting", function()
@@ -91,6 +96,7 @@ GateService.Init()
 GameService.Init()
 SaveService.Init()
 Chapter2Service.Init()
+Chapter3Service.Init()
 
 StalkerService.SpawnPatrol()
 
@@ -106,5 +112,22 @@ Players.PlayerAdded:Connect(function(player)
 		player:SetAttribute("Crouching", false)
 	end)
 end)
+
+-- Testing shortcut (Studio only): set a "StartChapter" attribute on
+-- Workspace to 2 or 3 to start a playtest in that chapter.
+if game:GetService("RunService"):IsStudio() then
+	local startChapter = workspace:GetAttribute("StartChapter")
+	if startChapter == 2 or startChapter == 3 then
+		Players.PlayerAdded:Connect(function(player)
+			player.CharacterAdded:Wait()
+			task.wait(3)
+			if startChapter == 2 then
+				Chapter2Service.Enter(player)
+			else
+				Chapter3Service.Enter(player)
+			end
+		end)
+	end
+end
 
 print("[Riftfall] Server ready.")

@@ -906,7 +906,7 @@ local function buildEndScreen()
 		Parent = endFrame,
 	}, { corner(8) })
 	continueButton.Activated:Connect(function()
-		Remotes.ContinueChapter:FireServer()
+		Remotes.ContinueChapter:FireServer(continueButton:GetAttribute("NextChapter"))
 		endFrame.Visible = false
 		ClientState.ModalOpen = noteFrame.Visible
 	end)
@@ -1045,15 +1045,25 @@ local function showEnd(stats: any)
 	if type(stats) ~= "table" then
 		return
 	end
-	if stats.Chapter == 2 then
-		endTitle.Text = "CHAPTER 2: BLACKSTONE RESEARCH FACILITY"
+	if stats.Chapter == 2 or stats.Chapter == 3 then
+		local chapter3 = stats.Chapter == 3
+		endTitle.Text = if chapter3 then "CHAPTER 3: THE SUNKEN TEMPLE" else "CHAPTER 2: BLACKSTONE RESEARCH FACILITY"
 		endHeadline.Text = "CHAPTER COMPLETE"
-		endNext.Text = "Riftfall: The Last Ascent continues in Chapter 3 - The Sunken Temple."
-		continueButton.Visible = false
-		-- Only one button now: center it.
+		endNext.Text = if chapter3
+			then "Riftfall: The Last Ascent continues in Chapter 4 - The Ascent."
+			else "Riftfall: The Last Ascent continues in Chapter 3 - The Sunken Temple."
+		continueButton.Visible = not chapter3
+		continueButton.Text = "Continue to Chapter 3"
+		continueButton:SetAttribute("NextChapter", 3)
 		local again = endFrame:FindFirstChild("PlayAgainButton") :: TextButton
-		again.AnchorPoint = Vector2.new(0.5, 0)
-		again.Position = UDim2.new(0.5, 0, 0.2, 290)
+		if chapter3 then
+			-- Only one button now: center it.
+			again.AnchorPoint = Vector2.new(0.5, 0)
+			again.Position = UDim2.new(0.5, 0, 0.2, 290)
+		else
+			again.AnchorPoint = Vector2.new(0, 0)
+			again.Position = UDim2.new(0.5, 8, 0.2, 290)
+		end
 		endStats.Text = string.format(
 			"Time: %s\nDeaths: %d\nLogs found: %d / %d",
 			formatTime(tonumber(stats.Time) or 0),
@@ -1069,6 +1079,8 @@ local function showEnd(stats: any)
 	endHeadline.Text = "CHAPTER COMPLETE"
 	endNext.Text = "Riftfall: The Last Ascent continues in Chapter 2 - Blackstone Research Facility."
 	continueButton.Visible = true
+	continueButton.Text = "Continue to Chapter 2"
+	continueButton:SetAttribute("NextChapter", 2)
 	local again = endFrame:FindFirstChild("PlayAgainButton") :: TextButton
 	again.AnchorPoint = Vector2.new(0, 0)
 	again.Position = UDim2.new(0.5, 8, 0.2, 290)

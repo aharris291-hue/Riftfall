@@ -32,6 +32,11 @@ local OBJECTIVE_ORDER = {
 	"C2Fuses",
 	"C2Escape",
 	"C2Done",
+	"C3Start",
+	"C3Plates",
+	"C3Heart",
+	"C3Escape",
+	"C3Done",
 }
 
 local currentObjectiveIndex = 0

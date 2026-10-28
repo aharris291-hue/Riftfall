@@ -31,6 +31,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local SceneryKit = require(script.Parent.Parent.Util.SceneryKit)
 local LevelDresser = require(script.Parent.Parent.Util.LevelDresser)
 local Chapter2Builder = require(script.Parent.Chapter2Builder)
+local Chapter3Builder = require(script.Parent.Chapter3Builder)
 
 local LevelBuilder = {}
 
@@ -1394,10 +1395,10 @@ end
 -- Smooth terrain for the valley floor: real grass that sways, mud on the
 -- trail and in the camp, plain ground under the paved and indoor areas.
 -- Returns the terrain only on the build that should fill static shapes.
--- Chapter 2 (the research facility) is built by its own module, using the
--- same helpers as Chapter 1.
-local function buildChapter2(level: Folder)
-	Chapter2Builder.Build(level, {
+-- Chapters 2 and 3 are built by their own modules, using the same helpers
+-- as Chapter 1.
+local function chapterKit()
+	return {
 		makePart = makePart,
 		makeZone = makeZone,
 		makePrompt = makePrompt,
@@ -1407,11 +1408,20 @@ local function buildChapter2(level: Folder)
 		makeNote = makeNote,
 		makeCheckpoint = makeCheckpoint,
 		makeStoryTrigger = makeStoryTrigger,
-	})
+	}
+end
+
+local function buildChapter2(level: Folder)
+	Chapter2Builder.Build(level, chapterKit())
+end
+
+local function buildChapter3(level: Folder)
+	Chapter3Builder.Build(level, chapterKit())
 end
 
 local function fillTerrain(terrain: Terrain)
 	SceneryKit.FillValley(terrain, Random.new(7))
+	Chapter3Builder.FillTerrain(terrain)
 	for z = -10, 205, 6 do
 		SceneryKit.PaintGround(terrain, Vector3.new(trailCenterX(z), 0, z), Vector2.new(8, 6), Enum.Material.Mud)
 	end
@@ -1549,6 +1559,7 @@ function LevelBuilder.Build(): Folder
 	buildTemple(level)
 	buildEscape(level, rng)
 	buildChapter2(level)
+	buildChapter3(level)
 	-- Backdrop is scenery only: never let it stop the playable level loading.
 	local ok, err = pcall(buildBackdrop, level, freshTerrain)
 	if not ok then
